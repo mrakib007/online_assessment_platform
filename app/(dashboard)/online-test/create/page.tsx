@@ -74,7 +74,7 @@ function BasicInfoForm({ onSave }: { onSave: (data: BasicInfo) => void }) {
 
   return (
     <>
-      <div className="bg-white rounded-xl border border-gray-200 px-8 py-7 max-w-3xl">
+      <div className="bg-white rounded-xl border border-gray-200 px-8 py-7 max-w-[960px] w-full mx-auto">
         <h3 className="text-base font-bold text-gray-800 mb-6">Basic Information</h3>
         <div className="flex flex-col gap-5">
           <div className="flex flex-col gap-1.5">
@@ -146,7 +146,7 @@ function BasicInfoForm({ onSave }: { onSave: (data: BasicInfo) => void }) {
         </div>
       </div>
 
-      <div className="flex items-center justify-between max-w-3xl">
+      <div className="flex items-center justify-between max-w-[960px] w-full mx-auto">
         <button onClick={() => router.push('/dashboard')}
           className="px-8 py-2.5 rounded-lg border border-gray-300 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors">
           Cancel
@@ -166,7 +166,7 @@ function BasicInfoView({ data, onEdit, onContinue }: { data: BasicInfo; onEdit: 
   const router = useRouter();
   return (
     <>
-      <div className="bg-white rounded-xl border border-gray-200 px-8 py-7 max-w-3xl">
+      <div className="bg-white rounded-xl border border-gray-200 px-8 py-7 max-w-[960px] w-full mx-auto">
         <div className="flex items-center justify-between mb-5">
           <h3 className="text-base font-bold text-gray-800">Basic Information</h3>
           <button onClick={onEdit} className="flex items-center gap-1.5 text-sm text-[#6633FF] hover:opacity-80 transition-opacity">
@@ -203,7 +203,7 @@ function BasicInfoView({ data, onEdit, onContinue }: { data: BasicInfo; onEdit: 
         </div>
       </div>
 
-      <div className="flex items-center justify-between max-w-3xl">
+      <div className="flex items-center justify-between max-w-[960px] w-full mx-auto">
         <button onClick={() => router.push('/dashboard')}
           className="px-8 py-2.5 rounded-lg border border-gray-300 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors">
           Cancel
@@ -299,7 +299,7 @@ function QuestionsStep({ hasQuestions }: { hasQuestions: boolean }) {
   const [modalOpen, setModalOpen] = useState(false);
 
   return (
-    <div className="flex flex-col gap-4 max-w-3xl">
+    <div className="flex flex-col gap-4 max-w-[960px] w-full mx-auto">
       <AddQuestionModal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
