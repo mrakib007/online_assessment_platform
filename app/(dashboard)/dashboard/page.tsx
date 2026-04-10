@@ -3,8 +3,9 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { Search } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import TestCard, { TestCardProps } from '@/components/online-test/TestCard';
+import { useGetAllQuery } from '@/lib/api/dynamicApi';
 
 function EmptyState() {
   return (
@@ -18,32 +19,19 @@ function EmptyState() {
 
 export default function DashboardPage() {
   const [search, setSearch] = useState('');
-  const [tests, setTests] = useState<TestCardProps[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: tests = [], isLoading, isError } = useGetAllQuery('/api/tests');
 
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/tests`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        const mapped = data.map((t: any) => ({
-          id: String(t.id),
-          title: t.title,
-          candidates: t.candidates,
-          questionSet: t.questionSet,
-          examSlots: t.totalSlots,
-        }));
-        setTests(mapped);
-      })
-      .catch(() => setTests([]))
-      .finally(() => setLoading(false));
-  }, []);
-
-  const filtered = tests.filter((t) =>
-    t.title.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = useMemo(() => {
+    return tests
+      .map((t: any) => ({
+        id: String(t.id),
+        title: t.title,
+        candidates: t.candidates,
+        questionSet: t.questionSet,
+        examSlots: t.totalSlots,
+      }))
+      .filter((t: any) => t.title.toLowerCase().includes(search.toLowerCase()));
+  }, [tests, search]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -70,11 +58,11 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {loading ? (
+      {isLoading ? (
         <div className="bg-white rounded-xl border border-gray-200 flex items-center justify-center py-20">
           <span className="text-sm text-gray-400">Loading...</span>
         </div>
-      ) : filtered.length === 0 ? (
+      ) : isError || filtered.length === 0 ? (
         <EmptyState />
       ) : (
         <>

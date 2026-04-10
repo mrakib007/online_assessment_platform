@@ -5,6 +5,7 @@ import * as Yup from 'yup';
 import { Eye, EyeOff } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useCreateMutation } from '@/lib/api/dynamicApi';
 
 const validationSchema = Yup.object({
   email: Yup.string()
@@ -18,6 +19,7 @@ const validationSchema = Yup.object({
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
+  const [login] = useCreateMutation();
 
   useEffect(() => {
     if (localStorage.getItem('token')) {
@@ -30,25 +32,17 @@ export default function LoginPage() {
     validationSchema,
     onSubmit: async (values, { setSubmitting, setErrors }) => {
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/login`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(values),
-        });
+        const result = await login({
+          endpoint: '/api/auth/login',
+          body: values,
+        }).unwrap();
 
-        const data = await res.json();
-
-        if (!res.ok) {
-          setErrors({ password: data.message || "Login failed" });
-          return;
-        }
-
-        localStorage.setItem("token", data.token);
-        localStorage.setItem("user", JSON.stringify(data.user));
+        localStorage.setItem("token", result.token);
+        localStorage.setItem("user", JSON.stringify(result.user));
 
         router.push("/dashboard");
-      } catch {
-        setErrors({ password: "Something went wrong. Please try again." });
+      } catch (error: any) {
+        setErrors({ password: error?.data?.message || "Login failed. Please try again." });
       } finally {
         setSubmitting(false);
       }
