@@ -1,32 +1,15 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { Search } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import TestCard, { TestCardProps } from '@/components/online-test/TestCard';
-
-const allTests: TestCardProps[] = [
-  { id: '1', title: 'Psychometric Test for Management Trainee Officer', candidates: 10000, questionSet: 3, examSlots: 3 },
-  { id: '2', title: 'Psychometric Test for Management Trainee Officer', candidates: 10000, questionSet: 3, examSlots: 3 },
-  { id: '3', title: 'Psychometric Test for Management Trainee Officer', candidates: null, questionSet: null, examSlots: null },
-  { id: '4', title: 'Psychometric Test for Management Trainee Officer', candidates: 10000, questionSet: 3, examSlots: 3 },
-];
 
 function EmptyState() {
   return (
     <div className="bg-white rounded-xl border border-gray-200 flex flex-col items-center justify-center py-20 px-6">
-      {/* Simple illustration using SVG */}
-      <svg width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg" className="mb-5">
-        <rect x="10" y="25" width="45" height="38" rx="4" fill="#CBD5E1" />
-        <rect x="16" y="18" width="45" height="38" rx="4" fill="#94A3B8" />
-        <rect x="22" y="30" width="6" height="6" rx="1" fill="#64748B" />
-        <rect x="32" y="32" width="20" height="2" rx="1" fill="#64748B" />
-        <rect x="22" y="42" width="30" height="2" rx="1" fill="#94A3B8" />
-        <circle cx="58" cy="22" r="12" fill="#3B82F6" />
-        <path d="M53 22l3 3 6-6" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-        <circle cx="58" cy="22" r="5" fill="#EF4444" />
-        <path d="M56 22h4M58 20v4" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
-      </svg>
+      <Image src="/empty.png" alt="No tests available" width={120} height={120} className="mb-5 object-contain" />
       <p className="text-base font-semibold text-gray-700 mb-1">No Online Test Available</p>
       <p className="text-sm text-gray-400 text-center">Currently, there are no online tests available. Please check back later for updates.</p>
     </div>
@@ -35,10 +18,30 @@ function EmptyState() {
 
 export default function DashboardPage() {
   const [search, setSearch] = useState('');
-  // Toggle to true to see populated state
-  const [showEmpty] = useState(false);
+  const [tests, setTests] = useState<TestCardProps[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const tests = showEmpty ? [] : allTests.filter(t =>
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/tests`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        const mapped = data.map((t: any) => ({
+          id: String(t.id),
+          title: t.title,
+          candidates: t.candidates,
+          questionSet: t.questionSet,
+          examSlots: t.totalSlots,
+        }));
+        setTests(mapped);
+      })
+      .catch(() => setTests([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const filtered = tests.filter((t) =>
     t.title.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -53,7 +56,7 @@ export default function DashboardPage() {
               type="text"
               placeholder="Search by exam title"
               value={search}
-              onChange={e => setSearch(e.target.value)}
+              onChange={(e) => setSearch(e.target.value)}
               className="pl-9 pr-4 py-2 text-sm rounded-lg border border-gray-200 bg-white outline-none focus:border-[#6633FF] focus:ring-2 focus:ring-[#6633FF]/10 w-64"
             />
           </div>
@@ -67,12 +70,18 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {tests.length === 0 ? (
+      {loading ? (
+        <div className="bg-white rounded-xl border border-gray-200 flex items-center justify-center py-20">
+          <span className="text-sm text-gray-400">Loading...</span>
+        </div>
+      ) : filtered.length === 0 ? (
         <EmptyState />
       ) : (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {tests.map(test => <TestCard key={test.id} {...test} />)}
+            {filtered.map((test) => (
+              <TestCard key={test.id} {...test} />
+            ))}
           </div>
           <div className="flex items-center justify-between mt-2 text-sm text-gray-500">
             <div className="flex items-center gap-2">

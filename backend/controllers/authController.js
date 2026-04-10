@@ -1,6 +1,6 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const prisma = require("../lib/prisma");
+const userModel = require("../models/userModel");
 
 const login = async (req, res) => {
   const { email, password } = req.body;
@@ -8,13 +8,11 @@ const login = async (req, res) => {
   if (!email || !password)
     return res.status(400).json({ message: "Email and password are required" });
 
-  const user = await prisma.user.findUnique({ where: { email } });
-  if (!user)
-    return res.status(401).json({ message: "Invalid credentials" });
+  const user = await userModel.findByEmail(email);
+  if (!user) return res.status(401).json({ message: "Invalid credentials" });
 
   const isMatch = await bcrypt.compare(password, user.password);
-  if (!isMatch)
-    return res.status(401).json({ message: "Invalid credentials" });
+  if (!isMatch) return res.status(401).json({ message: "Invalid credentials" });
 
   const token = jwt.sign(
     { id: user.id, email: user.email, role: user.role },
@@ -22,10 +20,7 @@ const login = async (req, res) => {
     { expiresIn: "7d" }
   );
 
-  res.json({
-    token,
-    user: { id: user.id, email: user.email, role: user.role },
-  });
+  res.json({ token, user: { id: user.id, email: user.email, role: user.role } });
 };
 
 module.exports = { login };
