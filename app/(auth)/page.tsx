@@ -3,7 +3,7 @@
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
 import { Eye, EyeOff } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 const validationSchema = Yup.object({
@@ -19,13 +19,39 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
 
+  useEffect(() => {
+    if (localStorage.getItem('token')) {
+      router.replace('/dashboard');
+    }
+  }, [router]);
+
   const formik = useFormik({
     initialValues: { email: '', password: '' },
     validationSchema,
-    onSubmit: async (_values, { setSubmitting }) => {
-      await new Promise((r) => setTimeout(r, 1200));
-      setSubmitting(false);
-      router.push('/dashboard');
+    onSubmit: async (values, { setSubmitting, setErrors }) => {
+      try {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(values),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          setErrors({ password: data.message || "Login failed" });
+          return;
+        }
+
+        localStorage.setItem("token", data.token);
+        localStorage.setItem("user", JSON.stringify(data.user));
+
+        router.push("/dashboard");
+      } catch {
+        setErrors({ password: "Something went wrong. Please try again." });
+      } finally {
+        setSubmitting(false);
+      }
     },
   });
 
