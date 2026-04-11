@@ -7,9 +7,10 @@ export interface TestCardProps {
   candidates: number | null;
   questionSet: number | null;
   examSlots: number | null;
+  userRole?: string;
 }
 
-export default function TestCard({ id, title, candidates, questionSet, examSlots }: TestCardProps) {
+export default function TestCard({ id, title, candidates, questionSet, examSlots, userRole }: TestCardProps) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-4">
       <h3 className="font-semibold text-gray-800 text-sm leading-snug">{title}</h3>
@@ -28,12 +29,22 @@ export default function TestCard({ id, title, candidates, questionSet, examSlots
         </span>
       </div>
       <div>
-        <Link
-          href={`/dashboard/candidates/${id}`}
-          className="text-xs font-semibold px-4 py-2 rounded-lg border border-[#6633FF] text-[#6633FF] hover:bg-[#6633FF]/5 transition-colors"
-        >
-          View Candidates
-        </Link>
+        {userRole === 'employer' ? (
+          <Link
+            href={`/dashboard/candidates/${id}`}
+            className="text-xs font-semibold px-4 py-2 rounded-lg border border-[#6633FF] text-[#6633FF] hover:bg-[#6633FF]/5 transition-colors"
+          >
+            View Candidates
+          </Link>
+        ) : (
+          <Link
+            href={`/online-test/${id}/start`}
+            className="text-xs font-semibold px-4 py-2 rounded-lg text-white hover:opacity-90 transition-opacity"
+            style={{ backgroundColor: '#6633FF' }}
+          >
+            Start
+          </Link>
+        )}
       </div>
     </div>
   );

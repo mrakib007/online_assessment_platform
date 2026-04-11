@@ -3,8 +3,8 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { Search } from 'lucide-react';
-import { useState, useMemo } from 'react';
-import TestCard, { TestCardProps } from '@/components/online-test/TestCard';
+import { useState, useMemo, useEffect } from 'react';
+import TestCard from '@/components/online-test/TestCard';
 import { useGetAllQuery } from '@/lib/api/dynamicApi';
 
 function EmptyState() {
@@ -19,7 +19,17 @@ function EmptyState() {
 
 export default function DashboardPage() {
   const [search, setSearch] = useState('');
+  const [userRole, setUserRole] = useState<string>('');
   const { data: tests = [], isLoading, isError } = useGetAllQuery('/api/tests');
+
+  // Get user role from localStorage
+  useEffect(() => {
+    const stored = localStorage.getItem('user');
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      setUserRole(parsed.role);
+    }
+  }, []);
 
   const filtered = useMemo(() => {
     return tests
@@ -48,13 +58,15 @@ export default function DashboardPage() {
               className="pl-9 pr-4 py-2 text-sm rounded-lg border border-gray-200 bg-white outline-none focus:border-[#6633FF] focus:ring-2 focus:ring-[#6633FF]/10 w-64"
             />
           </div>
-          <Link
-            href="/online-test/create"
-            className="px-5 py-2 rounded-lg text-white text-sm font-semibold hover:opacity-90 transition-opacity"
-            style={{ backgroundColor: '#6633FF' }}
-          >
-            Create Online Test
-          </Link>
+          {userRole === 'employer' && (
+            <Link
+              href="/online-test/create"
+              className="px-5 py-2 rounded-lg text-white text-sm font-semibold hover:opacity-90 transition-opacity"
+              style={{ backgroundColor: '#6633FF' }}
+            >
+              Create Online Test
+            </Link>
+          )}
         </div>
       </div>
 
@@ -67,8 +79,8 @@ export default function DashboardPage() {
       ) : (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {filtered.map((test) => (
-              <TestCard key={test.id} {...test} />
+            {filtered.map((test: any) => (
+              <TestCard key={test.id} {...test} userRole={userRole} />
             ))}
           </div>
           <div className="flex items-center justify-between mt-2 text-sm text-gray-500">
