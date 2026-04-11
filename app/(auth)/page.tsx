@@ -53,8 +53,8 @@ export default function LoginPage() {
     <>
       <h2 className="text-2xl font-semibold text-gray-800 mb-7">Sign In</h2>
       <div
-        className="w-full bg-white rounded-2xl"
-        style={{ maxWidth: '571px', border: '1px solid #E5E7EB', padding: '32px 32px 40px 32px' }}
+        className="w-full bg-white"
+        style={{ maxWidth: '571px', height: '373px', border: '1px solid #E5E7EB', borderRadius: '16px', padding: '32px 32px 40px 32px', gap: '10px' }}
       >
         <form onSubmit={formik.handleSubmit} noValidate>
           <div className="flex flex-col gap-2.5">
@@ -112,7 +112,7 @@ export default function LoginPage() {
                 <p className="text-xs text-red-500">{formik.errors.password}</p>
               )}
               <div className="flex justify-end mt-0.5">
-                <a href="#" className="text-sm text-gray-500 hover:text-[#6633FF] transition-colors duration-150">
+                <a href="#" className="text-sm transition-colors duration-150 hover:opacity-80" style={{ color: '#334155' }}>
                   Forget Password?
                 </a>
               </div>
@@ -121,7 +121,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={formik.isSubmitting}
-              className="w-full py-3 rounded-lg text-white font-semibold text-sm tracking-wide transition-all duration-150 mt-2 hover:opacity-90 active:scale-[0.99] disabled:opacity-70 disabled:cursor-not-allowed"
+              className="w-full py-3 rounded-lg text-white font-semibold text-sm tracking-wide transition-all duration-150 mt-10 hover:opacity-90 active:scale-[0.99] disabled:opacity-70 disabled:cursor-not-allowed"
               style={{ backgroundColor: '#6633FF' }}
             >
               {formik.isSubmitting ? (
@@ -137,6 +137,12 @@ export default function LoginPage() {
           </div>
         </form>
       </div>
+      <p className="mt-5 text-sm text-gray-500">
+        Don&apos;t have a profile?{' '}
+        <a href="/signup" className="font-semibold hover:underline" style={{ color: '#6633FF' }}>
+          Sign up
+        </a>
+      </p>
     </>
   );
 }
