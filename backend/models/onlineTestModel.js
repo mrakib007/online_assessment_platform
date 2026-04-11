@@ -3,16 +3,36 @@ const prisma = require("../lib/prisma");
 const findAll = () =>
   prisma.onlineTest.findMany({
     orderBy: { createdAt: "desc" },
-    include: { user: { select: { email: true, role: true } } },
+    include: {
+      questions: true,
+      user: { select: { email: true, role: true } },
+    },
   });
 
 const findById = (id) =>
   prisma.onlineTest.findUnique({
     where: { id },
-    include: { user: { select: { email: true, role: true } } },
+    include: {
+      questions: true,
+      user: { select: { email: true, role: true } },
+    },
   });
 
-const create = (data) => prisma.onlineTest.create({ data });
+const create = ({ questions = [], ...testData }) =>
+  prisma.onlineTest.create({
+    data: {
+      ...testData,
+      questions: {
+        create: questions.map(({ type, text, points, options }) => ({
+          type,
+          text,
+          points: points || 1,
+          options: options ?? null,
+        })),
+      },
+    },
+    include: { questions: true },
+  });
 
 const update = (id, data) =>
   prisma.onlineTest.update({ where: { id }, data });

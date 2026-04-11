@@ -1,10 +1,15 @@
+'use client';
+
 import { useRouter } from 'next/navigation';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
+import { useDispatch, useSelector } from 'react-redux';
+import { RootState } from '@/lib/store';
+import { setBasicInfo } from '@/lib/store/testCreationSlice';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 
-export interface BasicInfo {
+export type BasicInfo = {
   title: string;
   candidates: string;
   slots: string;
@@ -13,7 +18,7 @@ export interface BasicInfo {
   startTime: string;
   endTime: string;
   duration: string;
-}
+};
 
 const basicInfoSchema = Yup.object({
   title: Yup.string()
@@ -37,26 +42,21 @@ const basicInfoSchema = Yup.object({
 });
 
 interface BasicInfoFormProps {
-  onSave: (data: BasicInfo) => void;
+  onSave: () => void;
 }
 
 export default function BasicInfoForm({ onSave }: BasicInfoFormProps) {
   const router = useRouter();
+  const dispatch = useDispatch();
+  const basicInfo = useSelector((state: RootState) => state.testCreation.basicInfo);
 
   const formik = useFormik({
-    initialValues: {
-      title: '',
-      candidates: '',
-      slots: '',
-      questionSet: '',
-      questionType: '',
-      startTime: '',
-      endTime: '',
-      duration: '',
-    },
+    enableReinitialize: true,
+    initialValues: basicInfo,
     validationSchema: basicInfoSchema,
     onSubmit: (values) => {
-      onSave(values);
+      dispatch(setBasicInfo(values));
+      onSave();
     },
   });
 

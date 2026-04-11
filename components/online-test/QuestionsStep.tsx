@@ -1,64 +1,90 @@
+'use client';
+
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useDispatch, useSelector } from 'react-redux';
+import { RootState } from '@/lib/store';
+import { addQuestion, updateQuestion, deleteQuestion, resetTestCreation } from '@/lib/store/testCreationSlice';
 import { useCreateMutation } from '@/lib/api/dynamicApi';
 import AddQuestionModal from './AddQuestionModal';
 import QuestionCard from './QuestionCard';
-import { BasicInfo } from './BasicInfoForm';
 
-type QuestionType = 'MCQ' | 'Checkbox' | 'Text';
-
-interface Option {
-  label: string;
-  correct: boolean;
-}
+export type QuestionType = 'MCQ' | 'Radio' | 'Text';
 
 export interface Question {
   id: number;
-  type: QuestionType;
+  type: string;
   points: number;
   text: string;
-  options?: Option[];
+  options?: { label: string; correct: boolean }[];
 }
 
-interface QuestionsStepProps {
-  testData: BasicInfo | null;
-}
-
-export default function QuestionsStep({ testData }: QuestionsStepProps) {
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [createTest, { isLoading }] = useCreateMutation();
+export default function QuestionsStep() {
+  const dispatch = useDispatch();
   const router = useRouter();
+  const basicInfo = useSelector((state: RootState) => state.testCreation.basicInfo);
+  const questions = useSelector((state: RootState) => state.testCreation.questions);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
+  const [createTest, { isLoading }] = useCreateMutation();
+
+  const handleAddOrEdit = (q: { type: string; score: number; options: { text: string; correct: boolean }[]; questionText: string }) => {
+    if (editingQuestion) {
+      dispatch(updateQuestion({
+        ...editingQuestion,
+        type: q.type,
+        points: q.score,
+        text: q.questionText || editingQuestion.text,
+        options: q.options?.map((o) => ({ label: o.text, correct: o.correct })),
+      }));
+      setEditingQuestion(null);
+    } else {
+      dispatch(addQuestion({
+        id: questions.length + 1,
+        type: q.type,
+        points: q.score,
+        text: q.questionText || 'New Question',
+        options: q.options?.map((o) => ({ label: o.text, correct: o.correct })),
+      }));
+    }
+  };
+
+  const handleEdit = (question: Question) => {
+    setEditingQuestion(question);
+    setModalOpen(true);
+  };
+
+  const handleDelete = (id: number) => {
+    dispatch(deleteQuestion(id));
+  };
 
   const handleSubmit = async () => {
-    if (!testData) return;
-
     if (questions.length === 0) {
       alert('Please add at least one question before creating the test.');
       return;
     }
 
     try {
-      const payload = {
-        title: testData.title,
-        candidates: parseInt(testData.candidates),
-        totalSlots: parseInt(testData.slots),
-        questionSet: testData.questionSet,
-        questionType: testData.questionType,
-        startTime: testData.startTime,
-        endTime: testData.endTime,
-        duration: testData.duration,
-      };
-
       await createTest({
         endpoint: '/api/tests',
-        body: payload,
+        body: {
+          title: basicInfo.title,
+          candidates: parseInt(basicInfo.candidates),
+          totalSlots: parseInt(basicInfo.slots),
+          questionSet: basicInfo.questionSet,
+          questionType: basicInfo.questionType,
+          startTime: basicInfo.startTime,
+          endTime: basicInfo.endTime,
+          duration: basicInfo.duration,
+          questions: questions.map(({ type, text, points, options }) => ({
+            type, text, points, options: options ?? null,
+          })),
+        },
       }).unwrap();
 
-      alert('Test created successfully!');
+      dispatch(resetTestCreation());
       router.push('/dashboard');
     } catch (error: any) {
-      console.error('Failed to create test:', error);
       alert(error?.data?.message || 'Failed to create test. Please try again.');
     }
   };
@@ -67,28 +93,20 @@ export default function QuestionsStep({ testData }: QuestionsStepProps) {
     <div className="flex flex-col gap-4 max-w-[960px] w-full mx-auto">
       <AddQuestionModal
         open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        questionNumber={questions.length + 1}
-        onSave={(q) => {
-          setQuestions((prev) => [
-            ...prev,
-            {
-              id: prev.length + 1,
-              type: q.type as QuestionType,
-              points: q.score,
-              text: q.questionText || 'New Question',
-              options: q.options?.map((o) => ({ label: o.text, correct: false })),
-            },
-          ]);
-        }}
+        onClose={() => { setModalOpen(false); setEditingQuestion(null); }}
+        questionNumber={editingQuestion ? editingQuestion.id : questions.length + 1}
+        editData={editingQuestion}
+        onSave={handleAddOrEdit}
       />
+
       {questions.length > 0 && (
         <div className="bg-white rounded-xl border border-gray-200 px-8 py-2">
           {questions.map((q) => (
-            <QuestionCard key={q.id} question={q} />
+            <QuestionCard key={q.id} question={q} onEdit={handleEdit} onDelete={handleDelete} />
           ))}
         </div>
       )}
+
       <button
         onClick={() => setModalOpen(true)}
         className="w-full py-3 rounded-lg text-white text-sm font-semibold hover:opacity-90 transition-opacity"
@@ -97,24 +115,22 @@ export default function QuestionsStep({ testData }: QuestionsStepProps) {
         Add Question
       </button>
 
-      {questions.length > 0 && (
-        <div className="flex items-center justify-between mt-4">
-          <button
-            onClick={() => router.push('/dashboard')}
-            className="px-8 py-2.5 rounded-lg border border-gray-300 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={isLoading}
-            className="px-8 py-2.5 rounded-lg text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{ backgroundColor: '#6633FF' }}
-          >
-            {isLoading ? 'Creating Test...' : 'Create Test'}
-          </button>
-        </div>
-      )}
+      <div className="flex items-center justify-between mt-2">
+        <button
+          onClick={() => router.push('/dashboard')}
+          className="px-8 py-2.5 rounded-lg border border-gray-300 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={handleSubmit}
+          disabled={isLoading || questions.length === 0}
+          className="px-8 py-2.5 rounded-lg text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+          style={{ backgroundColor: '#6633FF' }}
+        >
+          {isLoading ? 'Creating...' : 'Create Test'}
+        </button>
+      </div>
     </div>
   );
 }

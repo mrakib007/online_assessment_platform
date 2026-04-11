@@ -5,7 +5,6 @@ const getAll = async (req, res) => {
     const tests = await onlineTestModel.findAll();
     res.json(tests);
   } catch (err) {
-    console.error(err);
     res.status(500).json({ message: err.message });
   }
 };
@@ -16,14 +15,24 @@ const getOne = async (req, res) => {
     if (!test) return res.status(404).json({ message: "Test not found" });
     res.json(test);
   } catch (err) {
-    console.error(err);
     res.status(500).json({ message: err.message });
   }
 };
 
 const create = async (req, res) => {
   try {
-    const { title, candidates, totalSlots, questionSet, questionType, startTime, endTime, duration } = req.body;
+    const {
+      title,
+      candidates,
+      totalSlots,
+      questionSet,
+      questionType,
+      startTime,
+      endTime,
+      duration,
+      questions,
+    } = req.body;
+
     if (!title) return res.status(400).json({ message: "Title is required" });
 
     const test = await onlineTestModel.create({
@@ -36,6 +45,7 @@ const create = async (req, res) => {
       endTime: endTime || null,
       duration: duration || null,
       createdBy: req.user.id,
+      questions: questions || [],
     });
 
     res.status(201).json(test);
@@ -50,7 +60,6 @@ const update = async (req, res) => {
     const test = await onlineTestModel.update(Number(req.params.id), req.body);
     res.json(test);
   } catch (err) {
-    console.error(err);
     res.status(500).json({ message: err.message });
   }
 };
@@ -60,7 +69,6 @@ const remove = async (req, res) => {
     await onlineTestModel.remove(Number(req.params.id));
     res.json({ message: "Deleted successfully" });
   } catch (err) {
-    console.error(err);
     res.status(500).json({ message: err.message });
   }
 };

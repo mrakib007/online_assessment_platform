@@ -1,15 +1,18 @@
+'use client';
+
 import { useRouter } from 'next/navigation';
 import { Pencil } from 'lucide-react';
-import { BasicInfo } from './BasicInfoForm';
+import { useSelector } from 'react-redux';
+import { RootState } from '@/lib/store';
 
 interface BasicInfoViewProps {
-  data: BasicInfo;
   onEdit: () => void;
   onContinue: () => void;
 }
 
-export default function BasicInfoView({ data, onEdit, onContinue }: BasicInfoViewProps) {
+export default function BasicInfoView({ onEdit, onContinue }: BasicInfoViewProps) {
   const router = useRouter();
+  const data = useSelector((state: RootState) => state.testCreation.basicInfo);
 
   return (
     <>
