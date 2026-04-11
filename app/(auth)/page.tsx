@@ -2,10 +2,11 @@
 
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
-import { Eye, EyeOff } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCreateMutation } from '@/lib/api/dynamicApi';
+import { Input } from '@/components/ui/input';
+import { useToast } from '@/hooks/use-toast';
 
 const validationSchema = Yup.object({
   email: Yup.string()
@@ -17,9 +18,9 @@ const validationSchema = Yup.object({
 });
 
 export default function LoginPage() {
-  const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
   const [login] = useCreateMutation();
+  const { toast } = useToast();
 
   useEffect(() => {
     if (localStorage.getItem('token')) {
@@ -40,9 +41,24 @@ export default function LoginPage() {
         localStorage.setItem("token", result.token);
         localStorage.setItem("user", JSON.stringify(result.user));
 
-        router.push("/dashboard");
+        toast({
+          variant: 'success',
+          title: 'Login Successful',
+          description: 'Welcome back! Redirecting to dashboard...',
+        });
+
+        setTimeout(() => {
+          router.push("/dashboard");
+        }, 500);
       } catch (error: any) {
-        setErrors({ password: error?.data?.message || "Login failed. Please try again." });
+        const errorMessage = error?.data?.message || "Login failed. Please try again.";
+        setErrors({ password: errorMessage });
+        
+        toast({
+          variant: 'destructive',
+          title: 'Login Failed',
+          description: errorMessage,
+        });
       } finally {
         setSubmitting(false);
       }
@@ -58,59 +74,31 @@ export default function LoginPage() {
       >
         <form onSubmit={formik.handleSubmit} noValidate>
           <div className="flex flex-col gap-2.5">
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor="email" className="text-sm font-medium text-gray-700">Email</label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
-                placeholder="Your primary email address"
+            <Input
+              label="Email"
+              name="email"
+              type="email"
+              autoComplete="email"
+              placeholder="Your primary email address"
+              value={formik.values.email}
+              onChange={formik.handleChange}
+              onBlur={formik.handleBlur}
+              error={formik.touched.email && formik.errors.email ? formik.errors.email : undefined}
+            />
+
+            <div className="mt-1">
+              <Input
+                label="Password"
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                placeholder="Enter your password"
+                value={formik.values.password}
                 onChange={formik.handleChange}
                 onBlur={formik.handleBlur}
-                value={formik.values.email}
-                className={`w-full px-4 py-2.5 rounded-lg border text-sm outline-none transition-all duration-150 placeholder:text-gray-400 text-gray-800 ${
-                  formik.touched.email && formik.errors.email
-                    ? 'border-red-400 bg-red-50 focus:border-red-500 focus:ring-2 focus:ring-red-100'
-                    : 'border-gray-200 bg-white focus:border-[#6633FF] focus:ring-2 focus:ring-[#6633FF]/10'
-                }`}
+                error={formik.touched.password && formik.errors.password ? formik.errors.password : undefined}
+                showPasswordToggle
               />
-              {formik.touched.email && formik.errors.email && (
-                <p className="text-xs text-red-500">{formik.errors.email}</p>
-              )}
-            </div>
-
-            <div className="flex flex-col gap-1.5 mt-1">
-              <label htmlFor="password" className="text-sm font-medium text-gray-700">Password</label>
-              <div className="relative">
-                <input
-                  id="password"
-                  name="password"
-                  type={showPassword ? 'text' : 'password'}
-                  autoComplete="current-password"
-                  placeholder="Enter your password"
-                  onChange={formik.handleChange}
-                  onBlur={formik.handleBlur}
-                  value={formik.values.password}
-                  className={`w-full px-4 py-2.5 pr-10 rounded-lg border text-sm outline-none transition-all duration-150 placeholder:text-gray-400 text-gray-800 ${
-                    formik.touched.password && formik.errors.password
-                      ? 'border-red-400 bg-red-50 focus:border-red-500 focus:ring-2 focus:ring-red-100'
-                      : 'border-gray-200 bg-white focus:border-[#6633FF] focus:ring-2 focus:ring-[#6633FF]/10'
-                  }`}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  tabIndex={-1}
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
-              {formik.touched.password && formik.errors.password && (
-                <p className="text-xs text-red-500">{formik.errors.password}</p>
-              )}
               <div className="flex justify-end mt-0.5">
                 <a href="#" className="text-sm transition-colors duration-150 hover:opacity-80" style={{ color: '#334155' }}>
                   Forget Password?

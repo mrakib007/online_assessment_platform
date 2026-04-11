@@ -2,10 +2,10 @@
 
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
-import { Eye, EyeOff } from 'lucide-react';
-import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCreateMutation } from '@/lib/api/dynamicApi';
+import { Input } from '@/components/ui/input';
+import { useToast } from '@/hooks/use-toast';
 
 const validationSchema = Yup.object({
   email: Yup.string().email('Please enter a valid email address').required('Email is required'),
@@ -17,10 +17,9 @@ const validationSchema = Yup.object({
 });
 
 export default function SignupPage() {
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
   const router = useRouter();
   const [register] = useCreateMutation();
+  const { toast } = useToast();
 
   const formik = useFormik({
     initialValues: { email: '', password: '', confirmPassword: '', role: '' },
@@ -34,21 +33,30 @@ export default function SignupPage() {
 
         localStorage.setItem('token', result.token);
         localStorage.setItem('user', JSON.stringify(result.user));
-        router.push('/dashboard');
+        
+        toast({
+          variant: 'success',
+          title: 'Account Created Successfully',
+          description: 'Welcome! Redirecting to dashboard...',
+        });
+
+        setTimeout(() => {
+          router.push('/dashboard');
+        }, 500);
       } catch (error: any) {
-        setErrors({ email: error?.data?.message || 'Registration failed. Please try again.' });
+        const errorMessage = error?.data?.message || 'Registration failed. Please try again.';
+        setErrors({ email: errorMessage });
+        
+        toast({
+          variant: 'destructive',
+          title: 'Registration Failed',
+          description: errorMessage,
+        });
       } finally {
         setSubmitting(false);
       }
     },
   });
-
-  const inputClass = (field: string) =>
-    `w-full px-4 py-2.5 rounded-lg border text-sm outline-none transition-all duration-150 placeholder:text-gray-400 text-gray-800 ${
-      (formik.touched as any)[field] && (formik.errors as any)[field]
-        ? 'border-red-400 bg-red-50 focus:border-red-500 focus:ring-2 focus:ring-red-100'
-        : 'border-gray-200 bg-white focus:border-[#6633FF] focus:ring-2 focus:ring-[#6633FF]/10'
-    }`;
 
   return (
     <>
@@ -57,19 +65,16 @@ export default function SignupPage() {
         <form onSubmit={formik.handleSubmit} noValidate>
           <div className="flex flex-col gap-4">
 
-            {/* Email */}
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor="email" className="text-sm font-medium text-gray-700">Email</label>
-              <input
-                id="email" name="email" type="email"
-                placeholder="Your primary email address"
-                onChange={formik.handleChange} onBlur={formik.handleBlur} value={formik.values.email}
-                className={inputClass('email')}
-              />
-              {formik.touched.email && formik.errors.email && (
-                <p className="text-xs text-red-500">{formik.errors.email}</p>
-              )}
-            </div>
+            <Input
+              label="Email"
+              name="email"
+              type="email"
+              placeholder="Your primary email address"
+              value={formik.values.email}
+              onChange={formik.handleChange}
+              onBlur={formik.handleBlur}
+              error={formik.touched.email && formik.errors.email ? formik.errors.email : undefined}
+            />
 
             {/* Role */}
             <div className="flex flex-col gap-1.5">
@@ -104,45 +109,29 @@ export default function SignupPage() {
               )}
             </div>
 
-            {/* Password */}
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor="password" className="text-sm font-medium text-gray-700">Password</label>
-              <div className="relative">
-                <input
-                  id="password" name="password" type={showPassword ? 'text' : 'password'}
-                  placeholder="Enter your password"
-                  onChange={formik.handleChange} onBlur={formik.handleBlur} value={formik.values.password}
-                  className={inputClass('password') + ' pr-10'}
-                />
-                <button type="button" onClick={() => setShowPassword(!showPassword)} tabIndex={-1}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
-              {formik.touched.password && formik.errors.password && (
-                <p className="text-xs text-red-500">{formik.errors.password}</p>
-              )}
-            </div>
+            <Input
+              label="Password"
+              name="password"
+              type="password"
+              placeholder="Enter your password"
+              value={formik.values.password}
+              onChange={formik.handleChange}
+              onBlur={formik.handleBlur}
+              error={formik.touched.password && formik.errors.password ? formik.errors.password : undefined}
+              showPasswordToggle
+            />
 
-            {/* Confirm Password */}
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor="confirmPassword" className="text-sm font-medium text-gray-700">Confirm Password</label>
-              <div className="relative">
-                <input
-                  id="confirmPassword" name="confirmPassword" type={showConfirm ? 'text' : 'password'}
-                  placeholder="Re-enter your password"
-                  onChange={formik.handleChange} onBlur={formik.handleBlur} value={formik.values.confirmPassword}
-                  className={inputClass('confirmPassword') + ' pr-10'}
-                />
-                <button type="button" onClick={() => setShowConfirm(!showConfirm)} tabIndex={-1}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                  {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
-              {formik.touched.confirmPassword && formik.errors.confirmPassword && (
-                <p className="text-xs text-red-500">{formik.errors.confirmPassword}</p>
-              )}
-            </div>
+            <Input
+              label="Confirm Password"
+              name="confirmPassword"
+              type="password"
+              placeholder="Re-enter your password"
+              value={formik.values.confirmPassword}
+              onChange={formik.handleChange}
+              onBlur={formik.handleBlur}
+              error={formik.touched.confirmPassword && formik.errors.confirmPassword ? formik.errors.confirmPassword : undefined}
+              showPasswordToggle
+            />
 
             <button
               type="submit" disabled={formik.isSubmitting}
