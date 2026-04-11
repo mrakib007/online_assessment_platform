@@ -13,7 +13,6 @@ const validationSchema = Yup.object({
   confirmPassword: Yup.string()
     .oneOf([Yup.ref('password')], 'Passwords do not match')
     .required('Please confirm your password'),
-  role: Yup.string().oneOf(['employer', 'candidate'], 'Please select a role').required('Role is required'),
 });
 
 export default function SignupPage() {
@@ -22,13 +21,18 @@ export default function SignupPage() {
   const { toast } = useToast();
 
   const formik = useFormik({
-    initialValues: { email: '', password: '', confirmPassword: '', role: '' },
+    initialValues: { email: '', password: '', confirmPassword: '' },
     validationSchema,
     onSubmit: async (values, { setSubmitting, setErrors }) => {
       try {
+        // Automatically set role as 'candidate' for all signups
         const result = await register({
           endpoint: '/api/auth/register',
-          body: { email: values.email, password: values.password, role: values.role },
+          body: { 
+            email: values.email, 
+            password: values.password, 
+            role: 'candidate' // Hardcoded as candidate
+          },
         }).unwrap();
 
         localStorage.setItem('token', result.token);
@@ -75,39 +79,6 @@ export default function SignupPage() {
               onBlur={formik.handleBlur}
               error={formik.touched.email && formik.errors.email ? formik.errors.email : undefined}
             />
-
-            {/* Role */}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-gray-700">Role</label>
-              <div className="flex gap-3">
-                {(['employer', 'candidate'] as const).map((r) => (
-                  <label
-                    key={r}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg border cursor-pointer text-sm font-medium transition-all ${
-                      formik.values.role === r
-                        ? 'border-[#6633FF] bg-[#6633FF]/5 text-[#6633FF]'
-                        : 'border-gray-200 text-gray-600 hover:border-gray-300'
-                    }`}
-                  >
-                    <input
-                      type="radio" name="role" value={r}
-                      checked={formik.values.role === r}
-                      onChange={formik.handleChange}
-                      className="hidden"
-                    />
-                    <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                      formik.values.role === r ? 'border-[#6633FF]' : 'border-gray-300'
-                    }`}>
-                      {formik.values.role === r && <span className="w-2 h-2 rounded-full bg-[#6633FF]" />}
-                    </span>
-                    {r.charAt(0).toUpperCase() + r.slice(1)}
-                  </label>
-                ))}
-              </div>
-              {formik.touched.role && formik.errors.role && (
-                <p className="text-xs text-red-500">{formik.errors.role}</p>
-              )}
-            </div>
 
             <Input
               label="Password"
