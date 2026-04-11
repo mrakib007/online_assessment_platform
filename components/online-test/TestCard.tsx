@@ -70,9 +70,9 @@ export default function TestCard({ id, title, candidates, questionSet, examSlots
         isLoading={isDeleting}
       />
 
-      <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-4">
+      <div className="bg-white rounded-2xl border border-gray-200 flex flex-col w-full" style={{ padding: '32px 32px 40px 32px', gap: '24px' }}>
         <div className="flex items-start justify-between gap-2">
-          <h3 className="font-semibold text-gray-800 text-sm leading-snug">{title}</h3>
+          <h3 className="font-semibold text-gray-800 text-base leading-snug">{title}</h3>
           {isEmployer && (
             <button
               onClick={() => setShowConfirm(true)}
@@ -84,7 +84,7 @@ export default function TestCard({ id, title, candidates, questionSet, examSlots
           )}
         </div>
 
-        <div className="flex items-center gap-5 text-xs text-gray-500 flex-wrap">
+        <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs text-gray-500">
           {isEmployer ? (
             <>
               <span className="flex items-center gap-1.5">

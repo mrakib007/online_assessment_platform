@@ -28,16 +28,19 @@ function AkijLogo({ light = false }: { light?: boolean }) {
 export default function Footer() {
   return (
     <footer className="py-5" style={{ backgroundColor: '#1a1a2e' }}>
-      <div className="max-w-7xl mx-auto px-8 flex items-center justify-between flex-wrap gap-4">
+      <div className="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        {/* Brand */}
         <div className="flex items-center gap-2.5">
           <span className="text-gray-400 text-sm">Powered by</span>
           <AkijLogo light />
         </div>
-        <div className="flex items-center gap-6 flex-wrap">
+
+        {/* Contact info */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6">
           <div className="flex items-center gap-2 text-gray-300 text-sm">
-            <span className="text-gray-400 mr-1">Helpline</span>
+            <span className="text-gray-400 text-xs">Helpline</span>
             <span
-              className="flex items-center justify-center w-7 h-7 rounded-full border"
+              className="flex items-center justify-center w-7 h-7 rounded-full border flex-shrink-0"
               style={{ borderColor: '#6633FF' }}
             >
               <Phone size={13} style={{ color: '#6633FF' }} />
@@ -46,7 +49,7 @@ export default function Footer() {
           </div>
           <div className="flex items-center gap-2 text-gray-300 text-sm">
             <span
-              className="flex items-center justify-center w-7 h-7 rounded-full border"
+              className="flex items-center justify-center w-7 h-7 rounded-full border flex-shrink-0"
               style={{ borderColor: '#6633FF' }}
             >
               <Mail size={13} style={{ color: '#6633FF' }} />
