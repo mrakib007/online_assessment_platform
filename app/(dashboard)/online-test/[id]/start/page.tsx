@@ -19,69 +19,67 @@ export default function ExamPage() {
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [status, setStatus] = useState<'exam' | 'completed' | 'timeout'>('exam');
   const [assignedSet, setAssignedSet] = useState<number | null>(null);
-
   const [tabSwitchCount, setTabSwitchCount] = useState(0);
   const [showTabWarning, setShowTabWarning] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Enter fullscreen
   useEffect(() => {
     if (!test || status !== 'exam') return;
-    const el = document.documentElement;
-    if (el.requestFullscreen) {
-      el.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {});
-    }
+    document.documentElement.requestFullscreen?.().catch(() => {});
   }, [test, status]);
 
+  // Detect fullscreen exit
   useEffect(() => {
-    const handleFullscreenChange = () => {
-      const isNowFullscreen = !!document.fullscreenElement;
-      setIsFullscreen(isNowFullscreen);
-      if (!isNowFullscreen && status === 'exam') {
+    const handler = () => {
+      if (!document.fullscreenElement && status === 'exam') setShowTabWarning(true);
+    };
+    document.addEventListener('fullscreenchange', handler);
+    return () => document.removeEventListener('fullscreenchange', handler);
+  }, [status]);
+
+  // Detect tab switch
+  useEffect(() => {
+    if (status !== 'exam') return;
+    const handler = () => {
+      if (document.hidden) {
+        setTabSwitchCount((c) => c + 1);
         setShowTabWarning(true);
       }
     };
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('visibilitychange', handler);
+    return () => document.removeEventListener('visibilitychange', handler);
   }, [status]);
 
+  // Parse duration + assign set
   useEffect(() => {
-    if (status !== 'exam') return;
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        setTabSwitchCount((c) => {
-          const next = c + 1;
-          setShowTabWarning(true);
-          return next;
-        });
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [status]);
-
-  // Parse duration into seconds
-  useEffect(() => {
-    if (test?.duration) {
+    if (!test) return;
+    if (test.duration) {
       const match = test.duration.match(/(\d+)/);
       if (match) setTimeLeft(parseInt(match[1]) * 60);
     }
-    // Randomly assign a set when test loads
-    if (test?.questionSet && assignedSet === null) {
-      const randomSet = Math.ceil(Math.random() * (test.questionSet || 1));
-      setAssignedSet(randomSet);
+    if (test.questionSet && assignedSet === null) {
+      setAssignedSet(Math.ceil(Math.random() * (test.questionSet || 1)));
     }
   }, [test]);
 
   const handleComplete = useCallback(async (timedOut = false) => {
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
     try {
-      await submitExam({ endpoint: `/api/exam/${id}/submit`, body: {} }).unwrap();
+      // Build answers payload: [{ questionId, answer }]
+      const answersPayload = Object.entries(answers).map(([qId, ans]) => ({
+        questionId: Number(qId),
+        answer: ans,
+      }));
+      await submitExam({
+        endpoint: `/api/exam/${id}/submit`,
+        body: { answers: answersPayload },
+      }).unwrap();
     } catch (err) { /* fail silently */ }
     setStatus(timedOut ? 'timeout' : 'completed');
-  }, [id, submitExam]);
+  }, [id, submitExam, answers]);
 
-  // Countdown timer
+  // Timer
   useEffect(() => {
     if (timeLeft === null || status !== 'exam') return;
     if (timeLeft <= 0) { handleComplete(true); return; }
@@ -100,8 +98,7 @@ export default function ExamPage() {
   };
 
   const handleNext = () => {
-    const total = test?.questions?.length ?? 0;
-    if (currentIndex < total - 1) {
+    if (currentIndex < questions.length - 1) {
       setCurrentIndex((i) => i + 1);
     } else {
       handleComplete(false);
@@ -109,51 +106,38 @@ export default function ExamPage() {
   };
 
   const handleSkip = () => {
-    const total = test?.questions?.length ?? 0;
-    if (currentIndex < total - 1) setCurrentIndex((i) => i + 1);
-  };
-
-  const handleResumeFromWarning = () => {
-    setShowTabWarning(false);
-  
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => {});
-    }
+    if (currentIndex < questions.length - 1) setCurrentIndex((i) => i + 1);
   };
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-32">
-        <span className="text-sm text-gray-400">Loading exam...</span>
-      </div>
-    );
+    return <div className="flex items-center justify-center py-32"><span className="text-sm text-gray-400">Loading exam...</span></div>;
   }
 
   if (!test || !test.questions?.length) {
-    return (
-      <div className="flex items-center justify-center py-32">
-        <span className="text-sm text-gray-400">No questions found for this exam.</span>
-      </div>
-    );
+    return <div className="flex items-center justify-center py-32"><span className="text-sm text-gray-400">No questions found for this exam.</span></div>;
   }
 
-  if (status === 'completed') return <CompletedScreen />;
+  if (status === 'completed') return <CompletedScreen testId={id as string} />;
 
-  // Filter questions by assigned set
-  const allQuestions = test.questions;
+  // Filter by assigned set
+  const allQuestions: any[] = test.questions;
   const questions = assignedSet && test.questionSet > 1
-    ? allQuestions.filter((q: any) => q.setNumber === assignedSet)
+    ? allQuestions.filter((q) => q.setNumber === assignedSet)
     : allQuestions;
-  const currentQuestion = questions[currentIndex];
-  const isLast = currentIndex === questions.length - 1;
+
+  // Guard: if no questions in assigned set, show all
+  const safeQuestions = questions.length > 0 ? questions : allQuestions;
+  const currentQuestion = safeQuestions[currentIndex];
+  const isLast = currentIndex === safeQuestions.length - 1;
+
+  if (!currentQuestion) return null;
 
   return (
     <div ref={containerRef} className="max-w-3xl mx-auto flex flex-col gap-6">
-      {/* Header bar */}
       <div className="bg-white rounded-xl border border-gray-200 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <span className="text-sm font-semibold text-gray-700">
-            Question ({currentIndex + 1}/{questions.length})
+            Question ({currentIndex + 1}/{safeQuestions.length})
           </span>
           {test.questionSet > 1 && assignedSet && (
             <span className="text-xs px-2 py-1 rounded-full bg-purple-50 text-[#6633FF] font-medium">
@@ -167,22 +151,18 @@ export default function ExamPage() {
           )}
         </div>
         {timeLeft !== null && (
-          <span className={`text-sm font-semibold px-3 py-1 rounded-lg ${
-            timeLeft < 300 ? 'bg-red-50 text-red-500' : 'bg-gray-100 text-gray-600'
-          }`}>
+          <span className={`text-sm font-semibold px-3 py-1 rounded-lg ${timeLeft < 300 ? 'bg-red-50 text-red-500' : 'bg-gray-100 text-gray-600'}`}>
             {formatTime(timeLeft)} left
           </span>
         )}
       </div>
 
-      {/* Question */}
       <ExamQuestion
         question={currentQuestion}
         answer={answers[currentQuestion.id]}
         onAnswer={(ans: string | string[]) => handleAnswer(currentQuestion.id, ans)}
       />
 
-      {/* Actions */}
       <div className="flex items-center justify-between">
         <button
           onClick={handleSkip}
@@ -199,14 +179,14 @@ export default function ExamPage() {
         </button>
       </div>
 
-      {status === 'timeout' && (
-        <TimeoutModal onBack={() => router.push('/dashboard')} />
-      )}
-
+      {status === 'timeout' && <TimeoutModal onBack={() => router.push('/dashboard')} />}
       {showTabWarning && (
         <TabSwitchWarning
           count={tabSwitchCount}
-          onResume={handleResumeFromWarning}
+          onResume={() => {
+            setShowTabWarning(false);
+            document.documentElement.requestFullscreen?.().catch(() => {});
+          }}
         />
       )}
     </div>

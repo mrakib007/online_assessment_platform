@@ -3,7 +3,11 @@
 import { BadgeCheck } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
-export default function CompletedScreen() {
+interface CompletedScreenProps {
+  testId: string;
+}
+
+export default function CompletedScreen({ testId }: CompletedScreenProps) {
   const router = useRouter();
 
   return (
@@ -14,13 +18,21 @@ export default function CompletedScreen() {
         <p className="text-sm text-gray-500 max-w-sm">
           Congratulations! You have completed your exam. Thank you for participating.
         </p>
-        <button
-          onClick={() => router.push('/dashboard')}
-          className="mt-4 px-8 py-2.5 rounded-lg text-white text-sm font-semibold hover:opacity-90 transition-opacity"
-          style={{ backgroundColor: '#6633FF' }}
-        >
-          Back to Dashboard
-        </button>
+        <div className="flex gap-3 mt-4">
+          <button
+            onClick={() => router.push(`/online-test/${testId}/result`)}
+            className="px-6 py-2.5 rounded-lg text-sm font-semibold border border-[#6633FF] text-[#6633FF] hover:bg-[#6633FF]/5 transition-colors"
+          >
+            View My Result
+          </button>
+          <button
+            onClick={() => router.push('/dashboard')}
+            className="px-6 py-2.5 rounded-lg text-white text-sm font-semibold hover:opacity-90 transition-opacity"
+            style={{ backgroundColor: '#6633FF' }}
+          >
+            Back to Dashboard
+          </button>
+        </div>
       </div>
     </div>
   );
