@@ -38,8 +38,8 @@ export default function DashboardPage() {
         title: t.title,
         candidates: t.candidates,
         questionSet: t.questionSet,
-        examSlots: t.totalSlots,
-        duration: t.duration,
+        examSlots: t.timeSlots?.length ?? 0,
+        duration: t.duration ?? null,
       }))
       .filter((t: any) => t.title.toLowerCase().includes(search.toLowerCase()));
   }, [tests, search]);

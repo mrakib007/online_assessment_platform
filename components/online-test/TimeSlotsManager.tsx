@@ -9,12 +9,30 @@ interface Props {
   totalCandidates: number;
 }
 
+// Convert UTC ISO string → datetime-local input value (local time)
+const toLocalInput = (iso: string) => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+
+// Convert datetime-local input value → UTC ISO string
+const toUTCIso = (local: string) => {
+  if (!local) return '';
+  return new Date(local).toISOString();
+};
+
 const emptySlot = (): TimeSlot => ({
   id: crypto.randomUUID(),
   startTime: '',
   endTime: '',
-  maxCandidates: 1,
+  maxCandidates: 10,
 });
+
+// Display stored UTC time in user's local timezone
+const fmt = (iso: string) =>
+  iso ? new Date(iso).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' }) : '—';
 
 export default function TimeSlotsManager({ slots, onChange, totalCandidates }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -41,7 +59,8 @@ export default function TimeSlotsManager({ slots, onChange, totalCandidates }: P
 
   const saveSlot = () => {
     if (!draft) return;
-    if (!draft.startTime || !draft.endTime || draft.startTime >= draft.endTime) return;
+    // draft.startTime and endTime are UTC ISO strings at this point
+    if (!draft.startTime || !draft.endTime || new Date(draft.startTime) >= new Date(draft.endTime)) return;
 
     const exists = slots.find((s) => s.id === draft.id);
     if (exists) {
@@ -54,9 +73,6 @@ export default function TimeSlotsManager({ slots, onChange, totalCandidates }: P
   };
 
   const removeSlot = (id: string) => onChange(slots.filter((s) => s.id !== id));
-
-  const fmt = (dt: string) =>
-    dt ? new Date(dt).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' }) : '—';
 
   return (
     <div className="flex flex-col gap-3">
@@ -122,7 +138,21 @@ function SlotForm({
   onSave: () => void;
   onCancel: () => void;
 }) {
-  const invalid = draft.startTime && draft.endTime && draft.startTime >= draft.endTime;
+  // Keep local input values separate from the UTC ISO stored in draft
+  const [localStart, setLocalStart] = useState(() => toLocalInput(draft.startTime));
+  const [localEnd, setLocalEnd] = useState(() => toLocalInput(draft.endTime));
+
+  const handleStartChange = (val: string) => {
+    setLocalStart(val);
+    onChange({ ...draft, startTime: toUTCIso(val) });
+  };
+
+  const handleEndChange = (val: string) => {
+    setLocalEnd(val);
+    onChange({ ...draft, endTime: toUTCIso(val) });
+  };
+
+  const invalid = localStart && localEnd && localStart >= localEnd;
 
   return (
     <div className="rounded-lg border border-[#6633FF]/30 bg-purple-50/30 px-4 py-3 flex flex-col gap-3">
@@ -131,8 +161,8 @@ function SlotForm({
           Start Time
           <input
             type="datetime-local"
-            value={draft.startTime}
-            onChange={(e) => onChange({ ...draft, startTime: e.target.value })}
+            value={localStart}
+            onChange={(e) => handleStartChange(e.target.value)}
             className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#6633FF]/30"
           />
         </label>
@@ -140,8 +170,8 @@ function SlotForm({
           End Time
           <input
             type="datetime-local"
-            value={draft.endTime}
-            onChange={(e) => onChange({ ...draft, endTime: e.target.value })}
+            value={localEnd}
+            onChange={(e) => handleEndChange(e.target.value)}
             className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#6633FF]/30"
           />
         </label>
@@ -149,10 +179,14 @@ function SlotForm({
       <label className="flex flex-col gap-1 text-xs text-gray-600 w-1/2">
         Max Candidates
         <input
-          type="number"
-          min={1}
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
           value={draft.maxCandidates}
-          onChange={(e) => onChange({ ...draft, maxCandidates: Number(e.target.value) })}
+          onChange={(e) => {
+            const val = e.target.value.replace(/\D/g, '');
+            onChange({ ...draft, maxCandidates: val === '' ? 0 : Number(val) });
+          }}
           className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#6633FF]/30"
         />
       </label>
@@ -162,7 +196,7 @@ function SlotForm({
         <button
           type="button"
           onClick={onSave}
-          disabled={!draft.startTime || !draft.endTime || !!invalid}
+          disabled={!localStart || !localEnd || !!invalid || draft.maxCandidates < 1}
           className="text-xs px-3 py-1.5 rounded-lg text-white font-medium disabled:opacity-50"
           style={{ backgroundColor: '#6633FF' }}
         >

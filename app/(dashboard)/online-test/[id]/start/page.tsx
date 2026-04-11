@@ -20,7 +20,8 @@ export default function ExamPage() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<number, string | string[]>>({});
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
-  const [status, setStatus] = useState<'loading' | 'exam' | 'completed' | 'timeout'>('loading');
+  const [status, setStatus] = useState<'loading' | 'exam' | 'completed' | 'timeout' | 'blocked'>('loading');
+  const [blockedMessage, setBlockedMessage] = useState<{ message: string; nextSlot?: string }>({ message: '' });
   const [assignedSet, setAssignedSet] = useState<number>(1);
   const [tabSwitchCount, setTabSwitchCount] = useState(0);
   const [showTabWarning, setShowTabWarning] = useState(false);
@@ -42,36 +43,46 @@ export default function ExamPage() {
       return;
     }
 
-    const durationMatch = test.duration?.match(/(\d+)/);
-    const durationSeconds = durationMatch ? parseInt(durationMatch[1]) * 60 : 0;
-
-    // If session exists (returning candidate), calculate remaining time
-    if (check?.session) {
-      const elapsed = Math.floor((Date.now() - new Date(check.session.startedAt).getTime()) / 1000);
-      const remaining = durationSeconds - elapsed;
-
-      if (remaining <= 0) {
-        handleComplete(true);
-        return;
+    // Duration: seconds remaining until slot end, or null if no slot
+    const getDurationSeconds = (slotEndTime?: string) => {
+      if (slotEndTime) {
+        const remaining = Math.floor((new Date(slotEndTime).getTime() - Date.now()) / 1000);
+        return remaining > 0 ? remaining : null;
       }
+      return null;
+    };
 
+    // If session exists (returning candidate), calculate remaining time from active slot
+    if (check?.session) {
       setAssignedSet(check.session.assignedSet);
-      setTimeLeft(remaining);
+      // Find the active slot from the test's timeSlots
+      const now = Date.now();
+      const activeSlot = (test.timeSlots || []).find((s: any) => {
+        return now >= new Date(s.startTime).getTime() && now <= new Date(s.endTime).getTime();
+      });
+      const secs = getDurationSeconds(activeSlot?.endTime);
+      setTimeLeft(secs);
       setStatus('exam');
     } else {
-      // New session — backend auto-assigns set
+      // New session — backend auto-assigns set and validates slot
       startExam({
         endpoint: `/api/exam/${id}/start`,
         body: {},
       }).then((result: any) => {
+        if (result?.error) {
+          const errData = result.error?.data;
+          const nextSlot = errData?.nextSlot?.startTime
+            ? new Date(errData.nextSlot.startTime).toLocaleString()
+            : undefined;
+          setBlockedMessage({ message: errData?.message || 'Unable to start exam.', nextSlot });
+          setStatus('blocked');
+          return;
+        }
         const session = result?.data?.session;
+        const slotEndTime = result?.data?.availableSlot?.endTime;
         if (session?.assignedSet) setAssignedSet(session.assignedSet);
-        setTimeLeft(durationSeconds);
+        setTimeLeft(getDurationSeconds(slotEndTime));
         setStatus('exam');
-      }).catch((err: any) => {
-        // 403 = outside time slot or slot full
-        const errData = err?.data || err?.error?.data;
-        alert(errData?.message || 'Unable to start exam. Please check the exam schedule.');
       });
     }
   }, [testLoading, checkLoading, test, checkData]);
@@ -127,11 +138,11 @@ export default function ExamPage() {
     }
   }, [id, submitExam, answers, assignedSet]);
 
-  // Countdown timer
+  // Countdown timer — only runs if timeLeft is set
   useEffect(() => {
     if (timeLeft === null || status !== 'exam') return;
     if (timeLeft <= 0) { handleComplete(true); return; }
-    const timer = setInterval(() => setTimeLeft((t) => (t ?? 1) - 1), 1000);
+    const timer = setInterval(() => setTimeLeft((t) => (t !== null ? t - 1 : null)), 1000);
     return () => clearInterval(timer);
   }, [timeLeft, status, handleComplete]);
 
@@ -166,6 +177,24 @@ export default function ExamPage() {
   }
 
   if (status === 'completed') return <CompletedScreen testId={id as string} />;
+
+  if (status === 'blocked') {
+    return (
+      <div className="flex flex-col items-center justify-center py-32 gap-4 max-w-md mx-auto text-center">
+        <div className="text-4xl">🔒</div>
+        <h2 className="text-lg font-semibold text-gray-800">{blockedMessage.message}</h2>
+        {blockedMessage.nextSlot && (
+          <p className="text-sm text-gray-500">Next slot opens at <span className="font-semibold text-[#6633FF]">{blockedMessage.nextSlot}</span></p>
+        )}
+        <button
+          onClick={() => router.push('/dashboard')}
+          className="mt-2 px-6 py-2.5 rounded-lg border border-gray-300 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+        >
+          Back to Dashboard
+        </button>
+      </div>
+    );
+  }
 
   if (isSubmitting) {
     return (
