@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useGetByIdQuery } from '@/lib/api/dynamicApi';
 import ExamQuestion from '@/components/online-test/ExamQuestion';
 import TimeoutModal from '@/components/online-test/TimeoutModal';
 import CompletedScreen from '@/components/online-test/CompletedScreen';
+import TabSwitchWarning from '@/components/online-test/TabSwitchWarning';
 
 export default function ExamPage() {
   const { id } = useParams();
@@ -17,7 +18,46 @@ export default function ExamPage() {
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [status, setStatus] = useState<'exam' | 'completed' | 'timeout'>('exam');
 
-  // Parse duration into seconds
+  const [tabSwitchCount, setTabSwitchCount] = useState(0);
+  const [showTabWarning, setShowTabWarning] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!test || status !== 'exam') return;
+    const el = document.documentElement;
+    if (el.requestFullscreen) {
+      el.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {});
+    }
+  }, [test, status]);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const isNowFullscreen = !!document.fullscreenElement;
+      setIsFullscreen(isNowFullscreen);
+      if (!isNowFullscreen && status === 'exam') {
+        setShowTabWarning(true);
+      }
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, [status]);
+
+  useEffect(() => {
+    if (status !== 'exam') return;
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        setTabSwitchCount((c) => {
+          const next = c + 1;
+          setShowTabWarning(true);
+          return next;
+        });
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [status]);
+
   useEffect(() => {
     if (test?.duration) {
       const match = test.duration.match(/(\d+)/);
@@ -26,6 +66,8 @@ export default function ExamPage() {
   }, [test]);
 
   const handleComplete = useCallback((timedOut = false) => {
+
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
     setStatus(timedOut ? 'timeout' : 'completed');
   }, []);
 
@@ -58,8 +100,14 @@ export default function ExamPage() {
 
   const handleSkip = () => {
     const total = test?.questions?.length ?? 0;
-    if (currentIndex < total - 1) {
-      setCurrentIndex((i) => i + 1);
+    if (currentIndex < total - 1) setCurrentIndex((i) => i + 1);
+  };
+
+  const handleResumeFromWarning = () => {
+    setShowTabWarning(false);
+  
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
     }
   };
 
@@ -86,12 +134,19 @@ export default function ExamPage() {
   const isLast = currentIndex === questions.length - 1;
 
   return (
-    <div className="max-w-3xl mx-auto flex flex-col gap-6">
+    <div ref={containerRef} className="max-w-3xl mx-auto flex flex-col gap-6">
       {/* Header bar */}
       <div className="bg-white rounded-xl border border-gray-200 px-6 py-4 flex items-center justify-between">
-        <span className="text-sm font-semibold text-gray-700">
-          Question ({currentIndex + 1}/{questions.length})
-        </span>
+        <div className="flex items-center gap-4">
+          <span className="text-sm font-semibold text-gray-700">
+            Question ({currentIndex + 1}/{questions.length})
+          </span>
+          {tabSwitchCount > 0 && (
+            <span className="text-xs px-2 py-1 rounded-full bg-red-50 text-red-500 font-medium">
+              ⚠ Tab switches: {tabSwitchCount}
+            </span>
+          )}
+        </div>
         {timeLeft !== null && (
           <span className={`text-sm font-semibold px-3 py-1 rounded-lg ${
             timeLeft < 300 ? 'bg-red-50 text-red-500' : 'bg-gray-100 text-gray-600'
@@ -128,6 +183,13 @@ export default function ExamPage() {
 
       {status === 'timeout' && (
         <TimeoutModal onBack={() => router.push('/dashboard')} />
+      )}
+
+      {showTabWarning && (
+        <TabSwitchWarning
+          count={tabSwitchCount}
+          onResume={handleResumeFromWarning}
+        />
       )}
     </div>
   );
