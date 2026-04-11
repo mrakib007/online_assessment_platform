@@ -32,9 +32,11 @@ export default function ResultPage() {
       <div className="bg-white rounded-xl border border-gray-200 px-8 py-8 flex flex-col items-center gap-2 text-center">
         <p className="text-sm text-gray-400 font-medium">Your Score</p>
         <p className="text-4xl font-bold" style={{ color: '#6633FF' }}>{score} <span className="text-xl text-gray-400">/ {totalPoints}</span></p>
-        <p className="text-sm text-gray-500 mt-1">
-          {graded.filter((q: any) => q.isCorrect).length} correct out of {graded.filter((q: any) => q.isCorrect !== null).length} graded questions
-        </p>
+        <div className="flex items-center gap-4 mt-2 text-sm">
+          <span className="flex items-center gap-1.5 text-green-600"><CheckCircle size={14} /> {graded.filter((q: any) => q.isCorrect === true).length} correct</span>
+          <span className="flex items-center gap-1.5 text-red-500"><XCircle size={14} /> {graded.filter((q: any) => q.isCorrect === false).length} wrong</span>
+          <span className="flex items-center gap-1.5 text-gray-400"><MinusCircle size={14} /> {graded.filter((q: any) => q.isCorrect === null).length} skipped</span>
+        </div>
       </div>
 
       {/* Questions */}

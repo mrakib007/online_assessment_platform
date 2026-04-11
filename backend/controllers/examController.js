@@ -99,6 +99,9 @@ function gradeQuestions(questions, answers, assignedSet, questionSetCount) {
       isCorrect = correctIndices.length > 0 &&
         correctIndices.length === submittedIndices.length &&
         correctIndices.every((i) => submittedIndices.includes(i));
+    } else if (q.type === 'Text') {
+      const answer = submitted?.answer;
+      isCorrect = typeof answer === 'string' && answer.trim().length > 0;
     }
 
     return {

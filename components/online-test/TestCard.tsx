@@ -17,7 +17,9 @@ export interface TestCardProps {
 }
 
 function CandidateActions({ id }: { id: string }) {
-  const { data } = useGetAllQuery(`/api/exam/${id}/check`);
+  const { data } = useGetAllQuery(`/api/exam/${id}/check`, {
+    refetchOnMountOrArgChange: true,
+  });
   const submitted = (data as any)?.submitted;
 
   if (submitted) {
