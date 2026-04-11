@@ -43,6 +43,7 @@ export default function AddQuestionModal({ open, onClose, onSave, questionNumber
   const [score, setScore] = useState(1);
   const [questionText, setQuestionText] = useState('');
   const [options, setOptions] = useState<Option[]>(defaultOptions());
+  const [errors, setErrors] = useState<{ question?: string; options?: string; correct?: string }>({});
 
   useEffect(() => {
     if (open && editData) {
@@ -58,6 +59,7 @@ export default function AddQuestionModal({ open, onClose, onSave, questionNumber
       setScore(1);
       setQuestionText('');
       setOptions(defaultOptions());
+      setErrors({});
     }
   }, [open, editData]);
 
@@ -87,6 +89,29 @@ export default function AddQuestionModal({ open, onClose, onSave, questionNumber
   const addOption = () => setOptions((prev) => [...prev, { text: '', correct: false }]);
 
   const handleSave = (andMore = false) => {
+    const newErrors: typeof errors = {};
+
+    if (!questionText.trim()) {
+      newErrors.question = 'Question text is required.';
+    }
+
+    if (type === 'MCQ' || type === 'Radio') {
+      const emptyOption = options.some((o) => !o.text.trim());
+      if (emptyOption) {
+        newErrors.options = 'All option fields must be filled in.';
+      }
+      const hasCorrect = options.some((o) => o.correct);
+      if (!hasCorrect) {
+        newErrors.correct = 'Please mark at least one correct answer.';
+      }
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+
+    setErrors({});
     onSave({ type, score, options, questionText });
     if (!andMore) {
       onClose();
@@ -132,16 +157,17 @@ export default function AddQuestionModal({ open, onClose, onSave, questionNumber
         {/* Body */}
         <div className="px-6 py-5 flex flex-col gap-4 max-h-[60vh] overflow-y-auto">
           {/* Question text */}
-          <div className="border border-gray-200 rounded-lg p-3">
+          <div className={`border rounded-lg p-3 ${errors.question ? 'border-red-400' : 'border-gray-200'}`}>
             <MiniToolbar />
             <textarea
               placeholder="Enter your question here..."
               value={questionText}
-              onChange={(e) => setQuestionText(e.target.value)}
+              onChange={(e) => { setQuestionText(e.target.value); setErrors((p) => ({ ...p, question: undefined })); }}
               rows={2}
               className="w-full text-sm outline-none resize-none text-gray-700 placeholder:text-gray-300"
             />
           </div>
+          {errors.question && <p className="text-xs text-red-500 -mt-2">{errors.question}</p>}
 
           {/* Options — MCQ & Radio */}
           {(type === 'MCQ' || type === 'Radio') && (
@@ -185,8 +211,10 @@ export default function AddQuestionModal({ open, onClose, onSave, questionNumber
                     type="text"
                     placeholder="Enter option text"
                     value={opt.text}
-                    onChange={(e) => updateOptionText(i, e.target.value)}
-                    className="flex-1 text-sm outline-none text-gray-700 placeholder:text-gray-300 bg-transparent"
+                    onChange={(e) => { updateOptionText(i, e.target.value); setErrors((p) => ({ ...p, options: undefined })); }}
+                    className={`flex-1 text-sm outline-none bg-transparent placeholder:text-gray-300 ${
+                      errors.options && !opt.text.trim() ? 'text-red-500 placeholder:text-red-300' : 'text-gray-700'
+                    }`}
                   />
 
                   <div className="flex items-center gap-1 text-gray-300">
@@ -201,6 +229,8 @@ export default function AddQuestionModal({ open, onClose, onSave, questionNumber
               <p className="text-xs text-gray-400 mt-1">
                 {type === 'Radio' ? 'Click the circle to select the correct answer' : 'Click the checkbox to mark correct answers'}
               </p>
+              {errors.options && <p className="text-xs text-red-500">{errors.options}</p>}
+              {errors.correct && <p className="text-xs text-red-500">{errors.correct}</p>}
               <button type="button" onClick={addOption} className="text-xs text-[#6633FF] hover:underline text-left">
                 + Another option
               </button>

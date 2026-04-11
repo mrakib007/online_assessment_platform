@@ -28,6 +28,7 @@ export default function QuestionsStep() {
   const [activeSet, setActiveSet] = useState(1);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
+  const [submitError, setSubmitError] = useState<string>('');
   const [createTest, { isLoading }] = useCreateMutation();
 
   const totalSets = parseInt(basicInfo.questionSet) || 1;
@@ -70,14 +71,16 @@ export default function QuestionsStep() {
   };
 
   const handleSubmit = async () => {
-    // Warn if any set has no questions
     const emptySets = setNumbers.filter(
       (s) => questions.filter((q) => q.setNumber === s).length === 0
     );
     if (emptySets.length > 0) {
-      alert(`Set ${emptySets.join(', ')} has no questions. Please add at least one question per set.`);
+      setSubmitError(`Set ${emptySets.join(', ')} ${emptySets.length > 1 ? 'have' : 'has'} no questions. Please add at least one question per set.`);
+      // Switch to first empty set so user can see it
+      setActiveSet(emptySets[0]);
       return;
     }
+    setSubmitError('');
 
     try {
       await createTest({
@@ -120,6 +123,7 @@ export default function QuestionsStep() {
           <span className="text-xs text-gray-500 mr-2 font-medium">Question Set:</span>
           {setNumbers.map((s) => {
             const count = questions.filter((q) => q.setNumber === s).length;
+            const isEmpty = count === 0 && submitError;
             return (
               <button
                 key={s}
@@ -127,9 +131,11 @@ export default function QuestionsStep() {
                 className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
                   activeSet === s
                     ? 'text-white'
+                    : isEmpty
+                    ? 'border border-red-400 text-red-500 bg-red-50'
                     : 'border border-gray-200 text-gray-600 hover:border-[#6633FF] hover:text-[#6633FF]'
                 }`}
-                style={activeSet === s ? { backgroundColor: '#6633FF' } : {}}
+                style={activeSet === s ? { backgroundColor: isEmpty ? '#ef4444' : '#6633FF' } : {}}
               >
                 Set {s}
                 {count > 0 && (
@@ -180,14 +186,17 @@ export default function QuestionsStep() {
         >
           Cancel
         </button>
-        <button
-          onClick={handleSubmit}
-          disabled={isLoading || questions.length === 0}
-          className="px-8 py-2.5 rounded-lg text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
-          style={{ backgroundColor: '#6633FF' }}
-        >
-          {isLoading ? 'Creating...' : 'Create Test'}
-        </button>
+        <div className="flex flex-col items-end gap-1">
+          {submitError && <p className="text-xs text-red-500">{submitError}</p>}
+          <button
+            onClick={handleSubmit}
+            disabled={isLoading || questions.length === 0}
+            className="px-8 py-2.5 rounded-lg text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ backgroundColor: '#6633FF' }}
+          >
+            {isLoading ? 'Creating...' : 'Create Test'}
+          </button>
+        </div>
       </div>
     </div>
   );
