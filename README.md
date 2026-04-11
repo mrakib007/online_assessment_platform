@@ -6,7 +6,7 @@ A modern, full-stack online assessment platform built with Next.js, React, and N
 
 - **Live Demo:** [https://online-assessment-platform-bice.vercel.app/](https://online-assessment-platform-bice.vercel.app/)
 - **GitHub Repository:** [https://github.com/mrakib007/online_assessment_platform](https://github.com/mrakib007/online_assessment_platform)
-- **Video Demo:** [Coming Soon]
+- **Video Demo:** [Watch Demo](https://drive.google.com/file/d/1oBHmBZSszdBBN1HXrmAO_09b2mMvemep/view?usp=sharing)
 
 ## 🚀 Features
 
