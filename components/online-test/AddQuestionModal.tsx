@@ -73,17 +73,26 @@ export default function AddQuestionModal({ open, onClose, onSave, questionNumber
   const formik = useFormik<FormValues>({
     initialValues,
     enableReinitialize: true,
-    validationSchema: buildSchema(initialValues.type),
+    // No validationSchema prop — use validate only so it reacts to type changes
     validate: (values) => {
-      // Re-run schema with current type since type can change
-      try {
-        buildSchema(values.type).validateSync(values, { abortEarly: false });
-      } catch (err: any) {
-        const errors: any = {};
-        err.inner?.forEach((e: any) => { errors[e.path] = e.message; });
-        return errors;
+      const errors: any = {};
+      if (!values.questionText.trim()) {
+        errors.questionText = 'Question text is required';
       }
-      return {};
+      if (values.type === 'MCQ' || values.type === 'Radio') {
+        const emptyOpt = values.options.findIndex((o) => !o.text.trim());
+        if (emptyOpt !== -1) {
+          if (!errors.options) errors.options = [];
+          errors.options[emptyOpt] = { text: 'Option text is required' };
+        }
+        if (!values.options.some((o) => o.correct)) {
+          errors.options = errors.options || 'Please mark at least one correct answer';
+          if (typeof errors.options !== 'string') {
+            errors._correct = 'Please mark at least one correct answer';
+          }
+        }
+      }
+      return errors;
     },
     onSubmit: (values, { resetForm }) => {
       onSave({ type: values.type, score: values.score, options: values.options, questionText: values.questionText });
@@ -155,9 +164,14 @@ export default function AddQuestionModal({ open, onClose, onSave, questionNumber
               <select
                 value={values.type}
                 onChange={(e) => {
-                  setFieldValue('type', e.target.value);
-                  if (e.target.value === 'Text') setFieldValue('options', []);
-                  else if (values.options.length === 0) setFieldValue('options', defaultOptions());
+                  const newType = e.target.value as QuestionType;
+                  setFieldValue('type', newType);
+                  // Only reset options when switching between Text and MCQ/Radio
+                  if (newType === 'Text') {
+                    setFieldValue('options', []);
+                  } else if (values.type === 'Text') {
+                    setFieldValue('options', defaultOptions());
+                  }
                 }}
                 className="appearance-none pl-3 pr-7 py-1.5 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#6633FF] bg-white text-gray-700"
               >
@@ -239,7 +253,8 @@ export default function AddQuestionModal({ open, onClose, onSave, questionNumber
 
                     {/* Errors */}
                     {optionsError && <p className="text-xs text-red-500">{optionsError}</p>}
-                    {!optionsError && values.options.some((_, i) => (touched.options as any)?.[i]?.text && (errors.options as any)?.[i]?.text) && (
+                    {(errors as any)._correct && <p className="text-xs text-red-500">{(errors as any)._correct}</p>}
+                    {!optionsError && !(errors as any)._correct && values.options.some((_, i) => (touched.options as any)?.[i]?.text && (errors.options as any)?.[i]?.text) && (
                       <p className="text-xs text-red-500">All option fields must be filled in.</p>
                     )}
 

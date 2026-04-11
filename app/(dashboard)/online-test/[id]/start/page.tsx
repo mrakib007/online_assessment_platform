@@ -24,6 +24,8 @@ export default function ExamPage() {
   const [assignedSet, setAssignedSet] = useState<number>(1);
   const [tabSwitchCount, setTabSwitchCount] = useState(0);
   const [showTabWarning, setShowTabWarning] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const isCompletingRef = useRef(false); // prevents tab/fullscreen warnings during submit
   const containerRef = useRef<HTMLDivElement>(null);
   const startedRef = useRef(false);
 
@@ -84,7 +86,7 @@ export default function ExamPage() {
   // Fullscreen exit detection
   useEffect(() => {
     const handler = () => {
-      if (!document.fullscreenElement && status === 'exam') setShowTabWarning(true);
+      if (!document.fullscreenElement && status === 'exam' && !isCompletingRef.current) setShowTabWarning(true);
     };
     document.addEventListener('fullscreenchange', handler);
     return () => document.removeEventListener('fullscreenchange', handler);
@@ -94,7 +96,7 @@ export default function ExamPage() {
   useEffect(() => {
     if (status !== 'exam') return;
     const handler = () => {
-      if (document.hidden) {
+      if (document.hidden && !isCompletingRef.current) {
         setTabSwitchCount((c) => c + 1);
         setShowTabWarning(true);
       }
@@ -104,6 +106,9 @@ export default function ExamPage() {
   }, [status]);
 
   const handleComplete = useCallback(async (timedOut = false) => {
+    isCompletingRef.current = true; // block all tab/fullscreen warnings
+    setShowTabWarning(false);
+    setIsSubmitting(true);
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
     try {
       const answersPayload = Object.entries(answers).map(([qId, ans]) => ({
@@ -115,7 +120,12 @@ export default function ExamPage() {
         body: { answers: answersPayload, assignedSet },
       }).unwrap();
     } catch (err) { /* fail silently */ }
-    setStatus(timedOut ? 'timeout' : 'completed');
+    setIsSubmitting(false);
+    if (timedOut) {
+      setStatus('timeout');
+    } else {
+      setStatus('completed');
+    }
   }, [id, submitExam, answers, assignedSet]);
 
   // Countdown timer
@@ -157,6 +167,18 @@ export default function ExamPage() {
   }
 
   if (status === 'completed') return <CompletedScreen testId={id as string} />;
+
+  if (isSubmitting) {
+    return (
+      <div className="flex flex-col items-center justify-center py-32 gap-4">
+        <svg className="animate-spin h-8 w-8" style={{ color: '#6633FF' }} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+        </svg>
+        <span className="text-sm text-gray-500">Submitting your exam...</span>
+      </div>
+    );
+  }
 
   const allQuestions: any[] = test.questions;
   const filteredQuestions = assignedSet && test.questionSet > 1
@@ -216,7 +238,7 @@ export default function ExamPage() {
       </div>
 
       {status === 'timeout' && <TimeoutModal onBack={() => router.push('/dashboard')} />}
-      {showTabWarning && (
+      {showTabWarning && !isSubmitting && (
         <TabSwitchWarning
           count={tabSwitchCount}
           onResume={() => {
