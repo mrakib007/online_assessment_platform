@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { useFormik, FieldArray, FormikProvider } from 'formik';
 import * as Yup from 'yup';
-import { X, Trash2, ChevronDown } from 'lucide-react';
+import { X, Trash2, ChevronDown, Bold, Italic, List } from 'lucide-react';
 
 type QuestionType = 'MCQ' | 'Radio' | 'Text';
 
