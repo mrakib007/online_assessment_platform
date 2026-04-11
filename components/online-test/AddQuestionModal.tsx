@@ -1,14 +1,22 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { X, Trash2, Bold, Italic, List } from 'lucide-react';
-import { ChevronDown } from 'lucide-react';
+import { useEffect } from 'react';
+import { useFormik, FieldArray, FormikProvider } from 'formik';
+import * as Yup from 'yup';
+import { X, Trash2, Bold, Italic, List, ChevronDown } from 'lucide-react';
 
 type QuestionType = 'MCQ' | 'Radio' | 'Text';
 
 interface Option {
   text: string;
   correct: boolean;
+}
+
+interface FormValues {
+  type: QuestionType;
+  score: number;
+  questionText: string;
+  options: Option[];
 }
 
 interface AddQuestionModalProps {
@@ -19,7 +27,30 @@ interface AddQuestionModalProps {
   editData?: { type: string; points: number; text: string; options?: { label: string; correct: boolean }[] } | null;
 }
 
-const typeOptions: QuestionType[] = ['MCQ', 'Radio', 'Text'];
+const defaultOptions = (): Option[] => [
+  { text: '', correct: false },
+  { text: '', correct: false },
+  { text: '', correct: false },
+  { text: '', correct: false },
+];
+
+const buildSchema = (type: QuestionType) =>
+  Yup.object({
+    questionText: Yup.string().trim().required('Question text is required'),
+    score: Yup.number().min(1, 'Score must be at least 1').required(),
+    options: type === 'Text'
+      ? Yup.array()
+      : Yup.array()
+          .of(
+            Yup.object({
+              text: Yup.string().trim().required('Option text is required'),
+              correct: Yup.boolean(),
+            })
+          )
+          .test('has-correct', 'Please mark at least one correct answer', (opts) =>
+            (opts ?? []).some((o) => o.correct)
+          ),
+  });
 
 function MiniToolbar() {
   return (
@@ -31,95 +62,75 @@ function MiniToolbar() {
   );
 }
 
-const defaultOptions = (): Option[] => [
-  { text: '', correct: false },
-  { text: '', correct: false },
-  { text: '', correct: false },
-  { text: '', correct: false },
-];
-
 export default function AddQuestionModal({ open, onClose, onSave, questionNumber = 1, editData }: AddQuestionModalProps) {
-  const [type, setType] = useState<QuestionType>('MCQ');
-  const [score, setScore] = useState(1);
-  const [questionText, setQuestionText] = useState('');
-  const [options, setOptions] = useState<Option[]>(defaultOptions());
-  const [errors, setErrors] = useState<{ question?: string; options?: string; correct?: string }>({});
+  const initialValues: FormValues = {
+    type: (editData?.type as QuestionType) || 'MCQ',
+    score: editData?.points || 1,
+    questionText: editData?.text || '',
+    options: editData?.options?.map((o) => ({ text: o.label, correct: o.correct })) || defaultOptions(),
+  };
 
+  const formik = useFormik<FormValues>({
+    initialValues,
+    enableReinitialize: true,
+    validationSchema: buildSchema(initialValues.type),
+    validate: (values) => {
+      // Re-run schema with current type since type can change
+      try {
+        buildSchema(values.type).validateSync(values, { abortEarly: false });
+      } catch (err: any) {
+        const errors: any = {};
+        err.inner?.forEach((e: any) => { errors[e.path] = e.message; });
+        return errors;
+      }
+      return {};
+    },
+    onSubmit: (values, { resetForm }) => {
+      onSave({ type: values.type, score: values.score, options: values.options, questionText: values.questionText });
+      onClose();
+      resetForm();
+    },
+  });
+
+  // Reset form when modal opens/closes
   useEffect(() => {
-    if (open && editData) {
-      setType(editData.type as QuestionType);
-      setScore(editData.points);
-      setQuestionText(editData.text);
-      setOptions(
-        editData.options?.map((o) => ({ text: o.label, correct: o.correct })) ||
-        defaultOptions()
-      );
-    } else if (open && !editData) {
-      setType('MCQ');
-      setScore(1);
-      setQuestionText('');
-      setOptions(defaultOptions());
-      setErrors({});
+    if (open) {
+      formik.resetForm({
+        values: {
+          type: (editData?.type as QuestionType) || 'MCQ',
+          score: editData?.points || 1,
+          questionText: editData?.text || '',
+          options: editData?.options?.map((o) => ({ text: o.label, correct: o.correct })) || defaultOptions(),
+        },
+      });
     }
   }, [open, editData]);
 
-  if (!open) return null;
-
-  const updateOptionText = (i: number, val: string) => {
-    setOptions((prev) => prev.map((o, idx) => (idx === i ? { ...o, text: val } : o)));
+  const handleSaveAndMore = () => {
+    formik.validateForm().then((errors) => {
+      if (Object.keys(errors).length === 0) {
+        onSave({ type: formik.values.type, score: formik.values.score, options: formik.values.options, questionText: formik.values.questionText });
+        formik.resetForm({
+          values: { type: formik.values.type, score: 1, questionText: '', options: defaultOptions() },
+        });
+      } else {
+        formik.setTouched({ questionText: true, options: formik.values.options.map(() => ({ text: true, correct: true })) as any });
+      }
+    });
   };
 
   const toggleCorrect = (i: number) => {
-    setOptions((prev) =>
-      prev.map((o, idx) => {
-        if (type === 'Radio') {
-          // Radio: only one correct answer
-          return { ...o, correct: idx === i };
-        }
-        // MCQ: multiple correct answers allowed
-        return idx === i ? { ...o, correct: !o.correct } : o;
-      })
-    );
+    const updated = formik.values.options.map((o, idx) => {
+      if (formik.values.type === 'Radio') return { ...o, correct: idx === i };
+      return idx === i ? { ...o, correct: !o.correct } : o;
+    });
+    formik.setFieldValue('options', updated);
   };
 
-  const removeOption = (i: number) => {
-    setOptions((prev) => prev.filter((_, idx) => idx !== i));
-  };
+  if (!open) return null;
 
-  const addOption = () => setOptions((prev) => [...prev, { text: '', correct: false }]);
-
-  const handleSave = (andMore = false) => {
-    const newErrors: typeof errors = {};
-
-    if (!questionText.trim()) {
-      newErrors.question = 'Question text is required.';
-    }
-
-    if (type === 'MCQ' || type === 'Radio') {
-      const emptyOption = options.some((o) => !o.text.trim());
-      if (emptyOption) {
-        newErrors.options = 'All option fields must be filled in.';
-      }
-      const hasCorrect = options.some((o) => o.correct);
-      if (!hasCorrect) {
-        newErrors.correct = 'Please mark at least one correct answer.';
-      }
-    }
-
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      return;
-    }
-
-    setErrors({});
-    onSave({ type, score, options, questionText });
-    if (!andMore) {
-      onClose();
-    } else {
-      setQuestionText('');
-      setOptions(defaultOptions());
-    }
-  };
+  const { values, errors, touched, handleChange, handleBlur, setFieldValue } = formik;
+  const optionsError = typeof errors.options === 'string' ? errors.options : null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
@@ -128,23 +139,29 @@ export default function AddQuestionModal({ open, onClose, onSave, questionNumber
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <span className="text-sm font-semibold text-gray-700">Question {questionNumber}</span>
           <div className="flex items-center gap-3">
+            {/* Score */}
             <div className="flex items-center gap-1.5 text-xs text-gray-500">
               <span>Score</span>
               <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden">
-                <button type="button" onClick={() => setScore((s) => Math.max(1, s - 1))}
+                <button type="button" onClick={() => setFieldValue('score', Math.max(1, values.score - 1))}
                   className="px-2 py-1 hover:bg-gray-50 text-gray-500">−</button>
-                <span className="px-2 text-gray-700 font-medium">{score}</span>
-                <button type="button" onClick={() => setScore((s) => s + 1)}
+                <span className="px-2 text-gray-700 font-medium">{values.score}</span>
+                <button type="button" onClick={() => setFieldValue('score', values.score + 1)}
                   className="px-2 py-1 hover:bg-gray-50 text-gray-500">+</button>
               </div>
             </div>
+            {/* Type */}
             <div className="relative">
               <select
-                value={type}
-                onChange={(e) => setType(e.target.value as QuestionType)}
+                value={values.type}
+                onChange={(e) => {
+                  setFieldValue('type', e.target.value);
+                  if (e.target.value === 'Text') setFieldValue('options', []);
+                  else if (values.options.length === 0) setFieldValue('options', defaultOptions());
+                }}
                 className="appearance-none pl-3 pr-7 py-1.5 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#6633FF] bg-white text-gray-700"
               >
-                {typeOptions.map((t) => <option key={t} value={t}>{t}</option>)}
+                {(['MCQ', 'Radio', 'Text'] as QuestionType[]).map((t) => <option key={t} value={t}>{t}</option>)}
               </select>
               <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             </div>
@@ -155,106 +172,109 @@ export default function AddQuestionModal({ open, onClose, onSave, questionNumber
         </div>
 
         {/* Body */}
-        <div className="px-6 py-5 flex flex-col gap-4 max-h-[60vh] overflow-y-auto">
-          {/* Question text */}
-          <div className={`border rounded-lg p-3 ${errors.question ? 'border-red-400' : 'border-gray-200'}`}>
-            <MiniToolbar />
-            <textarea
-              placeholder="Enter your question here..."
-              value={questionText}
-              onChange={(e) => { setQuestionText(e.target.value); setErrors((p) => ({ ...p, question: undefined })); }}
-              rows={2}
-              className="w-full text-sm outline-none resize-none text-gray-700 placeholder:text-gray-300"
-            />
-          </div>
-          {errors.question && <p className="text-xs text-red-500 -mt-2">{errors.question}</p>}
+        <FormikProvider value={formik}>
+          <div className="px-6 py-5 flex flex-col gap-4 max-h-[60vh] overflow-y-auto">
+            {/* Question text */}
+            <div>
+              <div className={`border rounded-lg p-3 ${touched.questionText && errors.questionText ? 'border-red-400' : 'border-gray-200'}`}>
+                <MiniToolbar />
+                <textarea
+                  name="questionText"
+                  placeholder="Enter your question here..."
+                  value={values.questionText}
+                  onChange={handleChange}
+                  onBlur={handleBlur}
+                  rows={2}
+                  className="w-full text-sm outline-none resize-none text-gray-700 placeholder:text-gray-300"
+                />
+              </div>
+              {touched.questionText && errors.questionText && (
+                <p className="text-xs text-red-500 mt-1">{errors.questionText}</p>
+              )}
+            </div>
 
-          {/* Options — MCQ & Radio */}
-          {(type === 'MCQ' || type === 'Radio') && (
-            <div className="flex flex-col gap-2">
-              {options.map((opt, i) => (
-                <div
-                  key={i}
-                  className={`flex items-center gap-2 border rounded-lg px-3 py-2 transition-colors ${
-                    opt.correct ? 'border-[#6633FF] bg-[#6633FF]/5' : 'border-gray-200'
-                  }`}
-                >
-                  {/* Clickable correct answer selector */}
-                  <button
-                    type="button"
-                    onClick={() => toggleCorrect(i)}
-                    className="flex-shrink-0 focus:outline-none"
-                    title="Mark as correct answer"
-                  >
-                    {type === 'MCQ' ? (
-                      <span className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
-                        opt.correct ? 'border-[#6633FF] bg-[#6633FF]' : 'border-gray-300'
-                      }`}>
-                        {opt.correct && (
-                          <svg width="8" height="6" viewBox="0 0 8 6" fill="none">
-                            <path d="M1 3l2 2 4-4" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
-                        )}
-                      </span>
-                    ) : (
-                      <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors ${
-                        opt.correct ? 'border-[#6633FF]' : 'border-gray-300'
-                      }`}>
-                        {opt.correct && (
-                          <span className="w-2 h-2 rounded-full bg-[#6633FF]" />
-                        )}
-                      </span>
+            {/* Options — MCQ & Radio */}
+            {(values.type === 'MCQ' || values.type === 'Radio') && (
+              <FieldArray name="options">
+                {({ push, remove }) => (
+                  <div className="flex flex-col gap-2">
+                    {values.options.map((opt, i) => {
+                      const optTouched = (touched.options as any)?.[i]?.text;
+                      const optError = (errors.options as any)?.[i]?.text;
+                      return (
+                        <div
+                          key={i}
+                          className={`flex items-center gap-2 border rounded-lg px-3 py-2 transition-colors ${
+                            opt.correct ? 'border-[#6633FF] bg-[#6633FF]/5' : optTouched && optError ? 'border-red-400' : 'border-gray-200'
+                          }`}
+                        >
+                          <button type="button" onClick={() => toggleCorrect(i)} className="flex-shrink-0 focus:outline-none">
+                            {values.type === 'MCQ' ? (
+                              <span className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${opt.correct ? 'border-[#6633FF] bg-[#6633FF]' : 'border-gray-300'}`}>
+                                {opt.correct && <svg width="8" height="6" viewBox="0 0 8 6" fill="none"><path d="M1 3l2 2 4-4" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+                              </span>
+                            ) : (
+                              <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors ${opt.correct ? 'border-[#6633FF]' : 'border-gray-300'}`}>
+                                {opt.correct && <span className="w-2 h-2 rounded-full bg-[#6633FF]" />}
+                              </span>
+                            )}
+                          </button>
+                          <input
+                            type="text"
+                            name={`options[${i}].text`}
+                            placeholder="Enter option text"
+                            value={opt.text}
+                            onChange={handleChange}
+                            onBlur={handleBlur}
+                            className="flex-1 text-sm outline-none bg-transparent placeholder:text-gray-300 text-gray-700"
+                          />
+                          <div className="flex items-center gap-1 text-gray-300">
+                            <button type="button" className="hover:text-gray-500"><Bold size={12} /></button>
+                            <button type="button" className="hover:text-gray-500"><Italic size={12} /></button>
+                            <button type="button" onClick={() => remove(i)} className="hover:text-red-400 ml-1"><Trash2 size={13} /></button>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {/* Errors */}
+                    {optionsError && <p className="text-xs text-red-500">{optionsError}</p>}
+                    {!optionsError && values.options.some((_, i) => (touched.options as any)?.[i]?.text && (errors.options as any)?.[i]?.text) && (
+                      <p className="text-xs text-red-500">All option fields must be filled in.</p>
                     )}
-                  </button>
 
-                  <input
-                    type="text"
-                    placeholder="Enter option text"
-                    value={opt.text}
-                    onChange={(e) => { updateOptionText(i, e.target.value); setErrors((p) => ({ ...p, options: undefined })); }}
-                    className={`flex-1 text-sm outline-none bg-transparent placeholder:text-gray-300 ${
-                      errors.options && !opt.text.trim() ? 'text-red-500 placeholder:text-red-300' : 'text-gray-700'
-                    }`}
-                  />
-
-                  <div className="flex items-center gap-1 text-gray-300">
-                    <button type="button" className="hover:text-gray-500"><Bold size={12} /></button>
-                    <button type="button" className="hover:text-gray-500"><Italic size={12} /></button>
-                    <button type="button" onClick={() => removeOption(i)} className="hover:text-red-400 ml-1">
-                      <Trash2 size={13} />
+                    <p className="text-xs text-gray-400">
+                      {values.type === 'Radio' ? 'Click the circle to select the correct answer' : 'Click the checkbox to mark correct answers'}
+                    </p>
+                    <button type="button" onClick={() => push({ text: '', correct: false })} className="text-xs text-[#6633FF] hover:underline text-left">
+                      + Another option
                     </button>
                   </div>
-                </div>
-              ))}
-              <p className="text-xs text-gray-400 mt-1">
-                {type === 'Radio' ? 'Click the circle to select the correct answer' : 'Click the checkbox to mark correct answers'}
-              </p>
-              {errors.options && <p className="text-xs text-red-500">{errors.options}</p>}
-              {errors.correct && <p className="text-xs text-red-500">{errors.correct}</p>}
-              <button type="button" onClick={addOption} className="text-xs text-[#6633FF] hover:underline text-left">
-                + Another option
-              </button>
-            </div>
-          )}
+                )}
+              </FieldArray>
+            )}
 
-          {/* Text type */}
-          {type === 'Text' && (
-            <div className="border border-gray-200 rounded-lg px-3 py-2">
-              <p className="text-xs text-gray-400">Candidates will type their answer in a text field.</p>
-            </div>
-          )}
-        </div>
+            {/* Text type */}
+            {values.type === 'Text' && (
+              <div className="border border-gray-200 rounded-lg px-3 py-2">
+                <p className="text-xs text-gray-400">Candidates will type their answer in a text field.</p>
+              </div>
+            )}
+          </div>
+        </FormikProvider>
 
         {/* Footer */}
         <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100">
           <button
-            onClick={() => handleSave(false)}
+            type="button"
+            onClick={() => formik.handleSubmit()}
             className="px-6 py-2 rounded-lg border border-gray-300 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
           >
             Save
           </button>
           <button
-            onClick={() => handleSave(true)}
+            type="button"
+            onClick={handleSaveAndMore}
             className="px-6 py-2 rounded-lg text-white text-sm font-semibold hover:opacity-90 transition-opacity"
             style={{ backgroundColor: '#6633FF' }}
           >
