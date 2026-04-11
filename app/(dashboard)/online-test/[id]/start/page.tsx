@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useGetByIdQuery } from '@/lib/api/dynamicApi';
+import { useGetByIdQuery, useCreateMutation } from '@/lib/api/dynamicApi';
 import ExamQuestion from '@/components/online-test/ExamQuestion';
 import TimeoutModal from '@/components/online-test/TimeoutModal';
 import CompletedScreen from '@/components/online-test/CompletedScreen';
@@ -12,11 +12,13 @@ export default function ExamPage() {
   const { id } = useParams();
   const router = useRouter();
   const { data: test, isLoading } = useGetByIdQuery({ endpoint: '/api/tests', id: id as string });
+  const [submitExam] = useCreateMutation();
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<number, string | string[]>>({});
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [status, setStatus] = useState<'exam' | 'completed' | 'timeout'>('exam');
+  const [assignedSet, setAssignedSet] = useState<number | null>(null);
 
   const [tabSwitchCount, setTabSwitchCount] = useState(0);
   const [showTabWarning, setShowTabWarning] = useState(false);
@@ -58,18 +60,26 @@ export default function ExamPage() {
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [status]);
 
+  // Parse duration into seconds
   useEffect(() => {
     if (test?.duration) {
       const match = test.duration.match(/(\d+)/);
       if (match) setTimeLeft(parseInt(match[1]) * 60);
     }
+    // Randomly assign a set when test loads
+    if (test?.questionSet && assignedSet === null) {
+      const randomSet = Math.ceil(Math.random() * (test.questionSet || 1));
+      setAssignedSet(randomSet);
+    }
   }, [test]);
 
-  const handleComplete = useCallback((timedOut = false) => {
-
+  const handleComplete = useCallback(async (timedOut = false) => {
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    try {
+      await submitExam({ endpoint: `/api/exam/${id}/submit`, body: {} }).unwrap();
+    } catch (err) { /* fail silently */ }
     setStatus(timedOut ? 'timeout' : 'completed');
-  }, []);
+  }, [id, submitExam]);
 
   // Countdown timer
   useEffect(() => {
@@ -129,7 +139,11 @@ export default function ExamPage() {
 
   if (status === 'completed') return <CompletedScreen />;
 
-  const questions = test.questions;
+  // Filter questions by assigned set
+  const allQuestions = test.questions;
+  const questions = assignedSet && test.questionSet > 1
+    ? allQuestions.filter((q: any) => q.setNumber === assignedSet)
+    : allQuestions;
   const currentQuestion = questions[currentIndex];
   const isLast = currentIndex === questions.length - 1;
 
@@ -141,6 +155,11 @@ export default function ExamPage() {
           <span className="text-sm font-semibold text-gray-700">
             Question ({currentIndex + 1}/{questions.length})
           </span>
+          {test.questionSet > 1 && assignedSet && (
+            <span className="text-xs px-2 py-1 rounded-full bg-purple-50 text-[#6633FF] font-medium">
+              Set {assignedSet}
+            </span>
+          )}
           {tabSwitchCount > 0 && (
             <span className="text-xs px-2 py-1 rounded-full bg-red-50 text-red-500 font-medium">
               ⚠ Tab switches: {tabSwitchCount}
@@ -167,8 +186,7 @@ export default function ExamPage() {
       <div className="flex items-center justify-between">
         <button
           onClick={handleSkip}
-          disabled={isLast}
-          className="px-5 py-2 rounded-lg border border-gray-300 text-sm font-medium text-gray-500 hover:bg-gray-50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          className="px-5 py-2 rounded-lg border border-[#6633FF] text-sm font-semibold text-[#6633FF] hover:bg-[#6633FF]/5 transition-colors"
         >
           Skip this Question
         </button>

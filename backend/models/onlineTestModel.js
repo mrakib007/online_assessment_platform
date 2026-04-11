@@ -23,11 +23,12 @@ const create = ({ questions = [], ...testData }) =>
     data: {
       ...testData,
       questions: {
-        create: questions.map(({ type, text, points, options }) => ({
+        create: questions.map(({ type, text, points, options, setNumber }) => ({
           type,
           text,
           points: points || 1,
           options: options ?? null,
+          setNumber: setNumber || 1,
         })),
       },
     },

@@ -21,6 +21,7 @@ export interface Question {
   type: string;
   points: number;
   text: string;
+  setNumber: number;
   options?: Option[];
 }
 
