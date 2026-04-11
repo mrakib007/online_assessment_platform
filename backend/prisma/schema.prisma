@@ -53,3 +53,17 @@ model Question {
 
   @@index([testId])
 }
+
+model ExamSubmission {
+  id          Int      @id @default(autoincrement())
+  testId      Int
+  candidateId Int
+  answers     Json
+  score       Float    @default(0)
+  totalPoints Float    @default(0)
+  submittedAt DateTime @default(now())
+
+  @@unique([testId, candidateId])
+  @@index([testId])
+  @@index([candidateId])
+}
