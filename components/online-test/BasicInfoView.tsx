@@ -31,7 +31,7 @@ export default function BasicInfoView({ onEdit, onContinue }: BasicInfoViewProps
             <p className="text-xs text-gray-400 mb-0.5">Online Test Title</p>
             <p className="text-sm font-semibold text-gray-800">{data.title || '—'}</p>
           </div>
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <div>
               <p className="text-xs text-gray-400 mb-0.5">Total Candidates</p>
               <p className="text-sm font-semibold text-gray-800">
@@ -39,21 +39,36 @@ export default function BasicInfoView({ onEdit, onContinue }: BasicInfoViewProps
               </p>
             </div>
             <div>
-              <p className="text-xs text-gray-400 mb-0.5">Total Slots</p>
-              <p className="text-sm font-semibold text-gray-800">{data.slots || '—'}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-400 mb-0.5">Total Question Set</p>
+              <p className="text-xs text-gray-400 mb-0.5">Total Question Sets</p>
               <p className="text-sm font-semibold text-gray-800">{data.questionSet || '—'}</p>
             </div>
             <div>
-              <p className="text-xs text-gray-400 mb-0.5">Duration Per Slots (Minutes)</p>
-              <p className="text-sm font-semibold text-gray-800">{data.duration || '—'}</p>
+              <p className="text-xs text-gray-400 mb-0.5">Question Type</p>
+              <p className="text-sm font-semibold text-gray-800">{data.questionType || '—'}</p>
             </div>
           </div>
           <div>
-            <p className="text-xs text-gray-400 mb-0.5">Question Type</p>
-            <p className="text-sm font-semibold text-gray-800">{data.questionType || '—'}</p>
+            <p className="text-xs text-gray-400 mb-0.5">Negative Marking</p>
+            <p className="text-sm font-semibold text-gray-800">
+              {data.negativeMarkingEnabled ? `Enabled — ${data.negativeMarkingPenalty}% penalty` : 'Disabled'}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-400 mb-0.5">Time Slots</p>
+            {data.timeSlots.length === 0 ? (
+              <p className="text-sm text-gray-400">No slots defined (open access)</p>
+            ) : (
+              <div className="flex flex-col gap-1 mt-1">
+                {data.timeSlots.map((s) => (
+                  <p key={s.id} className="text-sm font-semibold text-gray-800">
+                    {new Date(s.startTime).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}
+                    {' → '}
+                    {new Date(s.endTime).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}
+                    <span className="text-xs text-gray-400 ml-2">({s.maxCandidates} max)</span>
+                  </p>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>

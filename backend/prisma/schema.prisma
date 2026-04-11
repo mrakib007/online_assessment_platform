@@ -26,19 +26,30 @@ model User {
 }
 
 model OnlineTest {
-  id           Int        @id @default(autoincrement())
-  title        String
-  candidates   Int?
-  totalSlots   Int?
-  questionSet  Int?
-  questionType String?
-  startTime    String?
-  endTime      String?
-  duration     String?
-  questions    Question[]
-  createdBy    Int
-  user         User       @relation(fields: [createdBy], references: [id])
-  createdAt    DateTime   @default(now())
+  id                     Int        @id @default(autoincrement())
+  title                  String
+  candidates             Int?
+  questionSet            Int?
+  questionType           String?
+  negativeMarkingEnabled Boolean    @default(false)
+  negativeMarkingPenalty Int        @default(0)
+  questions              Question[]
+  timeSlots              TimeSlot[]
+  createdBy              Int
+  user                   User       @relation(fields: [createdBy], references: [id])
+  createdAt              DateTime   @default(now())
+}
+
+model TimeSlot {
+  id            Int        @id @default(autoincrement())
+  testId        Int
+  test          OnlineTest @relation(fields: [testId], references: [id], onDelete: Cascade)
+  startTime     DateTime
+  endTime       DateTime
+  maxCandidates Int
+  createdAt     DateTime   @default(now())
+
+  @@index([testId])
 }
 
 model Question {
@@ -79,4 +90,5 @@ model ExamSession {
 
   @@unique([testId, candidateId])
   @@index([testId, candidateId])
+  @@index([testId, assignedSet])
 }

@@ -24,12 +24,11 @@ const create = async (req, res) => {
     const {
       title,
       candidates,
-      totalSlots,
       questionSet,
       questionType,
-      startTime,
-      endTime,
-      duration,
+      negativeMarkingEnabled = false,
+      negativeMarkingPenalty = 0,
+      timeSlots = [],
       questions,
     } = req.body;
 
@@ -38,14 +37,13 @@ const create = async (req, res) => {
     const test = await onlineTestModel.create({
       title,
       candidates: candidates ? Number(candidates) : null,
-      totalSlots: totalSlots ? Number(totalSlots) : null,
       questionSet: questionSet ? Number(questionSet) : null,
       questionType: questionType || null,
-      startTime: startTime || null,
-      endTime: endTime || null,
-      duration: duration || null,
+      negativeMarkingEnabled: Boolean(negativeMarkingEnabled),
+      negativeMarkingPenalty: Number(negativeMarkingPenalty) || 0,
       createdBy: req.user.id,
       questions: questions || [],
+      timeSlots,
     });
 
     res.status(201).json(test);

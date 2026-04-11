@@ -88,12 +88,13 @@ export default function QuestionsStep() {
         body: {
           title: basicInfo.title,
           candidates: parseInt(basicInfo.candidates),
-          totalSlots: parseInt(basicInfo.slots),
           questionSet: parseInt(basicInfo.questionSet),
           questionType: basicInfo.questionType,
-          startTime: basicInfo.startTime,
-          endTime: basicInfo.endTime,
-          duration: basicInfo.duration,
+          negativeMarkingEnabled: basicInfo.negativeMarkingEnabled,
+          negativeMarkingPenalty: basicInfo.negativeMarkingPenalty,
+          timeSlots: basicInfo.timeSlots.map(({ startTime, endTime, maxCandidates }) => ({
+            startTime, endTime, maxCandidates,
+          })),
           questions: questions.map(({ type, text, points, options, setNumber }) => ({
             type, text, points, options: options ?? null, setNumber,
           })),

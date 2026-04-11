@@ -5,6 +5,7 @@ const findAll = () =>
     orderBy: { createdAt: "desc" },
     include: {
       questions: true,
+      timeSlots: true,
       user: { select: { email: true, role: true } },
     },
   });
@@ -14,11 +15,12 @@ const findById = (id) =>
     where: { id },
     include: {
       questions: true,
+      timeSlots: true,
       user: { select: { email: true, role: true } },
     },
   });
 
-const create = ({ questions = [], ...testData }) =>
+const create = ({ questions = [], timeSlots = [], ...testData }) =>
   prisma.onlineTest.create({
     data: {
       ...testData,
@@ -31,8 +33,15 @@ const create = ({ questions = [], ...testData }) =>
           setNumber: setNumber || 1,
         })),
       },
+      timeSlots: {
+        create: timeSlots.map(({ startTime, endTime, maxCandidates }) => ({
+          startTime: new Date(startTime),
+          endTime: new Date(endTime),
+          maxCandidates: Number(maxCandidates),
+        })),
+      },
     },
-    include: { questions: true },
+    include: { questions: true, timeSlots: true },
   });
 
 const update = (id, data) =>

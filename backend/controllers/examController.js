@@ -1,13 +1,15 @@
 const prisma = require("../lib/prisma");
+const SetAssignmentService = require("../services/SetAssignmentService");
+const GradingService = require("../services/GradingService");
+const TimeSlotValidator = require("../services/TimeSlotValidator");
 
-// Start exam — creates session with startedAt timestamp
+// Start exam — auto-assigns set, validates time slot
 const startExam = async (req, res) => {
   try {
     const testId = Number(req.params.testId);
     const candidateId = req.user.id;
-    const { assignedSet = 1 } = req.body;
 
-    // Check if already submitted
+    // Already submitted?
     const submission = await prisma.examSubmission.findUnique({
       where: { testId_candidateId: { testId, candidateId } },
     });
@@ -15,14 +17,39 @@ const startExam = async (req, res) => {
       return res.status(409).json({ message: "Already submitted" });
     }
 
-    // Upsert session — if they refresh, keep original startedAt
-    const session = await prisma.examSession.upsert({
+    // If session already exists, return it (refresh case)
+    const existingSession = await prisma.examSession.findUnique({
       where: { testId_candidateId: { testId, candidateId } },
-      update: {}, // don't update startedAt on refresh
-      create: { testId, candidateId, assignedSet },
+    });
+    if (existingSession) {
+      return res.json({ session: existingSession });
+    }
+
+    // Fetch test with time slots
+    const test = await prisma.onlineTest.findUnique({
+      where: { id: testId },
+      include: { timeSlots: true },
+    });
+    if (!test) return res.status(404).json({ message: "Test not found" });
+
+    // Validate time slot
+    const slotResult = await TimeSlotValidator.validateTimeSlot(test.timeSlots, testId);
+    if (!slotResult.valid) {
+      return res.status(403).json({
+        message: slotResult.message,
+        reason: slotResult.reason,
+        nextSlot: slotResult.nextSlot || null,
+      });
+    }
+
+    // Auto-assign set via round-robin
+    const assignedSet = await SetAssignmentService.assignSet(testId, test.questionSet || 1);
+
+    const session = await prisma.examSession.create({
+      data: { testId, candidateId, assignedSet },
     });
 
-    res.json({ session });
+    res.json({ session, availableSlot: slotResult.slot || null });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: err.message });
@@ -53,13 +80,13 @@ const checkSubmission = async (req, res) => {
   }
 };
 
-// Submit exam
+// Submit exam — reads assignedSet from session, not body
 const submitExam = async (req, res) => {
   try {
     const testId = Number(req.params.testId);
     const candidateId = req.user.id;
     const candidateEmail = req.user.email;
-    const { answers = [], assignedSet = 1 } = req.body;
+    const { answers = [] } = req.body;
 
     const existing = await prisma.examSubmission.findUnique({
       where: { testId_candidateId: { testId, candidateId } },
@@ -67,6 +94,12 @@ const submitExam = async (req, res) => {
     if (existing) {
       return res.status(409).json({ message: "Already submitted", submission: existing });
     }
+
+    // Get assignedSet from session (authoritative source)
+    const session = await prisma.examSession.findUnique({
+      where: { testId_candidateId: { testId, candidateId } },
+    });
+    const assignedSet = session?.assignedSet ?? 1;
 
     const submission = await prisma.examSubmission.create({
       data: { testId, candidateId, candidateEmail, answers, assignedSet },
@@ -78,38 +111,6 @@ const submitExam = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
-
-// Grade helper — only grades questions from assigned set
-function gradeQuestions(questions, answers, assignedSet, questionSetCount) {
-  const setQuestions = questionSetCount > 1
-    ? questions.filter((q) => q.setNumber === assignedSet)
-    : questions;
-
-  return setQuestions.map((q) => {
-    const submitted = answers.find((a) => a.questionId === q.id);
-    let isCorrect = null;
-
-    if (q.type === 'MCQ' || q.type === 'Radio') {
-      const correctIndices = (q.options || [])
-        .map((o, i) => (o.correct ? i : -1))
-        .filter((i) => i !== -1);
-      const submittedIndices = submitted?.answer
-        ? (Array.isArray(submitted.answer) ? submitted.answer : [submitted.answer]).map(Number)
-        : [];
-      isCorrect = correctIndices.length > 0 &&
-        correctIndices.length === submittedIndices.length &&
-        correctIndices.every((i) => submittedIndices.includes(i));
-    } else if (q.type === 'Text') {
-      const answer = submitted?.answer;
-      isCorrect = typeof answer === 'string' && answer.trim().length > 0;
-    }
-
-    return {
-      id: q.id, text: q.text, type: q.type, points: q.points,
-      options: q.options, submittedAnswer: submitted?.answer ?? null, isCorrect,
-    };
-  });
-}
 
 // Candidate's own result
 const getMyResult = async (req, res) => {
@@ -127,11 +128,16 @@ const getMyResult = async (req, res) => {
       include: { questions: true },
     });
 
-    const graded = gradeQuestions(test.questions, submission.answers, submission.assignedSet, test.questionSet || 1);
-    const score = graded.reduce((sum, q) => sum + (q.isCorrect ? q.points : 0), 0);
-    const totalPoints = graded.reduce((sum, q) => sum + q.points, 0);
+    const { graded, score, totalPoints, penaltyPoints, percentage } = GradingService.gradeExam(
+      test.questions,
+      submission.answers,
+      submission.assignedSet,
+      test.questionSet || 1,
+      test.negativeMarkingEnabled,
+      test.negativeMarkingPenalty
+    );
 
-    res.json({ submission, graded, score, totalPoints });
+    res.json({ submission, graded, score, totalPoints, penaltyPoints, percentage });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: err.message });
@@ -168,11 +174,24 @@ const getSubmissionDetail = async (req, res) => {
       include: { questions: true },
     });
 
-    const graded = gradeQuestions(test.questions, submission.answers, submission.assignedSet, test.questionSet || 1);
-    const score = graded.reduce((sum, q) => sum + (q.isCorrect ? q.points : 0), 0);
-    const totalPoints = graded.reduce((sum, q) => sum + q.points, 0);
+    const { graded, score, totalPoints, penaltyPoints, percentage } = GradingService.gradeExam(
+      test.questions,
+      submission.answers,
+      submission.assignedSet,
+      test.questionSet || 1,
+      test.negativeMarkingEnabled,
+      test.negativeMarkingPenalty
+    );
 
-    res.json({ submission, graded, score, totalPoints, candidateEmail: submission.candidateEmail });
+    res.json({
+      submission,
+      graded,
+      score,
+      totalPoints,
+      penaltyPoints,
+      percentage,
+      candidateEmail: submission.candidateEmail,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: err.message });

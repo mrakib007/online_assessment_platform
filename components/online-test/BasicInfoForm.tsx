@@ -5,19 +5,20 @@ import { useFormik } from 'formik';
 import * as Yup from 'yup';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState } from '@/lib/store';
-import { setBasicInfo } from '@/lib/store/testCreationSlice';
+import { setBasicInfo, TimeSlot } from '@/lib/store/testCreationSlice';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
+import TimeSlotsManager from './TimeSlotsManager';
+import NegativeMarkingConfig from './NegativeMarkingConfig';
 
 export type BasicInfo = {
   title: string;
   candidates: string;
-  slots: string;
   questionSet: string;
   questionType: string;
-  startTime: string;
-  endTime: string;
-  duration: string;
+  negativeMarkingEnabled: boolean;
+  negativeMarkingPenalty: number;
+  timeSlots: TimeSlot[];
 };
 
 const basicInfoSchema = Yup.object({
@@ -28,17 +29,9 @@ const basicInfoSchema = Yup.object({
     .required('Total candidates is required')
     .positive('Must be a positive number')
     .integer('Must be a whole number'),
-  slots: Yup.string().required('Total slots is required'),
   questionSet: Yup.string().required('Question set is required'),
   questionType: Yup.string().required('Question type is required'),
-  startTime: Yup.string().required('Start time is required'),
-  endTime: Yup.string()
-    .required('End time is required')
-    .test('is-after-start', 'End time must be after start time', function (value) {
-      const { startTime } = this.parent;
-      if (!startTime || !value) return true;
-      return value > startTime;
-    }),
+  negativeMarkingPenalty: Yup.number().min(0).max(100),
 });
 
 interface BasicInfoFormProps {
@@ -50,7 +43,7 @@ export default function BasicInfoForm({ onSave }: BasicInfoFormProps) {
   const dispatch = useDispatch();
   const basicInfo = useSelector((state: RootState) => state.testCreation.basicInfo);
 
-  const formik = useFormik({
+  const formik = useFormik<BasicInfo>({
     enableReinitialize: true,
     initialValues: basicInfo,
     validationSchema: basicInfoSchema,
@@ -59,23 +52,6 @@ export default function BasicInfoForm({ onSave }: BasicInfoFormProps) {
       onSave();
     },
   });
-
-  const handleTimeChange = (field: 'startTime' | 'endTime') => (e: React.ChangeEvent<HTMLInputElement>) => {
-    formik.handleChange(e);
-    const value = e.target.value;
-
-    setTimeout(() => {
-      const start = field === 'startTime' ? value : formik.values.startTime;
-      const end = field === 'endTime' ? value : formik.values.endTime;
-
-      if (start && end) {
-        const [sh, sm] = start.split(':').map(Number);
-        const [eh, em] = end.split(':').map(Number);
-        const diff = eh * 60 + em - (sh * 60 + sm);
-        formik.setFieldValue('duration', diff > 0 ? `${diff} min` : '');
-      }
-    }, 0);
-  };
 
   return (
     <>
@@ -106,20 +82,6 @@ export default function BasicInfoForm({ onSave }: BasicInfoFormProps) {
               error={formik.touched.candidates && formik.errors.candidates ? formik.errors.candidates : undefined}
             />
             <Select
-              label="Total Slots"
-              required
-              name="slots"
-              placeholder="Select total slots"
-              options={[1, 2, 3, 4, 5].map((n) => ({ value: n, label: String(n) }))}
-              value={formik.values.slots}
-              onChange={formik.handleChange}
-              onBlur={formik.handleBlur}
-              error={formik.touched.slots && formik.errors.slots ? formik.errors.slots : undefined}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <Select
               label="Total Question Set"
               required
               name="questionSet"
@@ -130,51 +92,38 @@ export default function BasicInfoForm({ onSave }: BasicInfoFormProps) {
               onBlur={formik.handleBlur}
               error={formik.touched.questionSet && formik.errors.questionSet ? formik.errors.questionSet : undefined}
             />
-            <Select
-              label="Question Type"
-              required
-              name="questionType"
-              placeholder="Select question type"
-              options={[
-                { value: 'MCQ', label: 'MCQ' },
-                { value: 'Checkbox', label: 'Checkbox' },
-                { value: 'Text', label: 'Text' },
-              ]}
-              value={formik.values.questionType}
-              onChange={formik.handleChange}
-              onBlur={formik.handleBlur}
-              error={formik.touched.questionType && formik.errors.questionType ? formik.errors.questionType : undefined}
+          </div>
+
+          <Select
+            label="Question Type"
+            required
+            name="questionType"
+            placeholder="Select question type"
+            options={[
+              { value: 'MCQ', label: 'MCQ' },
+              { value: 'Checkbox', label: 'Checkbox' },
+              { value: 'Text', label: 'Text' },
+            ]}
+            value={formik.values.questionType}
+            onChange={formik.handleChange}
+            onBlur={formik.handleBlur}
+            error={formik.touched.questionType && formik.errors.questionType ? formik.errors.questionType : undefined}
+          />
+
+          <div className="border-t border-gray-100 pt-5">
+            <TimeSlotsManager
+              slots={formik.values.timeSlots}
+              onChange={(slots) => formik.setFieldValue('timeSlots', slots)}
+              totalCandidates={Number(formik.values.candidates) || 0}
             />
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
-            <Input
-              label="Start Time"
-              required
-              name="startTime"
-              type="time"
-              value={formik.values.startTime}
-              onChange={handleTimeChange('startTime')}
-              onBlur={formik.handleBlur}
-              error={formik.touched.startTime && formik.errors.startTime ? formik.errors.startTime : undefined}
-            />
-            <Input
-              label="End Time"
-              required
-              name="endTime"
-              type="time"
-              value={formik.values.endTime}
-              onChange={handleTimeChange('endTime')}
-              onBlur={formik.handleBlur}
-              error={formik.touched.endTime && formik.errors.endTime ? formik.errors.endTime : undefined}
-            />
-            <Input
-              label="Duration"
-              name="duration"
-              readOnly
-              value={formik.values.duration}
-              placeholder="Duration Time"
-              className="bg-gray-50 text-gray-500"
+          <div className="border-t border-gray-100 pt-5">
+            <NegativeMarkingConfig
+              enabled={formik.values.negativeMarkingEnabled}
+              penalty={formik.values.negativeMarkingPenalty}
+              onEnabledChange={(v) => formik.setFieldValue('negativeMarkingEnabled', v)}
+              onPenaltyChange={(v) => formik.setFieldValue('negativeMarkingPenalty', v)}
             />
           </div>
         </form>

@@ -51,7 +51,6 @@ export default function ExamPage() {
       const remaining = durationSeconds - elapsed;
 
       if (remaining <= 0) {
-        // Time already expired — auto submit
         handleComplete(true);
         return;
       }
@@ -60,19 +59,19 @@ export default function ExamPage() {
       setTimeLeft(remaining);
       setStatus('exam');
     } else {
-      // New session — pick random set and call start API
-      const randomSet = Math.ceil(Math.random() * (test.questionSet || 1));
-      setAssignedSet(randomSet);
-
+      // New session — backend auto-assigns set
       startExam({
         endpoint: `/api/exam/${id}/start`,
-        body: { assignedSet: randomSet },
-      }).then(() => {
+        body: {},
+      }).then((result: any) => {
+        const session = result?.data?.session;
+        if (session?.assignedSet) setAssignedSet(session.assignedSet);
         setTimeLeft(durationSeconds);
         setStatus('exam');
-      }).catch(() => {
-        setTimeLeft(durationSeconds);
-        setStatus('exam');
+      }).catch((err: any) => {
+        // 403 = outside time slot or slot full
+        const errData = err?.data || err?.error?.data;
+        alert(errData?.message || 'Unable to start exam. Please check the exam schedule.');
       });
     }
   }, [testLoading, checkLoading, test, checkData]);
@@ -117,7 +116,7 @@ export default function ExamPage() {
       }));
       await submitExam({
         endpoint: `/api/exam/${id}/submit`,
-        body: { answers: answersPayload, assignedSet },
+        body: { answers: answersPayload },
       }).unwrap();
     } catch (err) { /* fail silently */ }
     setIsSubmitting(false);
