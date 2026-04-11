@@ -62,9 +62,21 @@ model ExamSubmission {
   candidateId    Int
   candidateEmail String
   answers        Json     @default("[]")
+  assignedSet    Int      @default(1)
   submittedAt    DateTime @default(now())
 
   @@unique([testId, candidateId])
   @@index([testId])
   @@index([candidateId])
+}
+
+model ExamSession {
+  id          Int      @id @default(autoincrement())
+  testId      Int
+  candidateId Int
+  assignedSet Int      @default(1)
+  startedAt   DateTime @default(now())
+
+  @@unique([testId, candidateId])
+  @@index([testId, candidateId])
 }

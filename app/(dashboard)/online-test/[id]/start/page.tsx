@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useGetByIdQuery, useCreateMutation } from '@/lib/api/dynamicApi';
+import { useGetByIdQuery, useGetAllQuery, useCreateMutation } from '@/lib/api/dynamicApi';
 import ExamQuestion from '@/components/online-test/ExamQuestion';
 import TimeoutModal from '@/components/online-test/TimeoutModal';
 import CompletedScreen from '@/components/online-test/CompletedScreen';
@@ -11,25 +11,77 @@ import TabSwitchWarning from '@/components/online-test/TabSwitchWarning';
 export default function ExamPage() {
   const { id } = useParams();
   const router = useRouter();
-  const { data: test, isLoading } = useGetByIdQuery({ endpoint: '/api/tests', id: id as string });
+
+  const { data: test, isLoading: testLoading } = useGetByIdQuery({ endpoint: '/api/tests', id: id as string });
+  const { data: checkData, isLoading: checkLoading } = useGetAllQuery(`/api/exam/${id}/check`);
+  const [startExam] = useCreateMutation();
   const [submitExam] = useCreateMutation();
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<number, string | string[]>>({});
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
-  const [status, setStatus] = useState<'exam' | 'completed' | 'timeout'>('exam');
-  const [assignedSet, setAssignedSet] = useState<number | null>(null);
+  const [status, setStatus] = useState<'loading' | 'exam' | 'completed' | 'timeout'>('loading');
+  const [assignedSet, setAssignedSet] = useState<number>(1);
   const [tabSwitchCount, setTabSwitchCount] = useState(0);
   const [showTabWarning, setShowTabWarning] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const startedRef = useRef(false);
 
-  // Enter fullscreen
+  // Once test + check data loaded, initialize session
   useEffect(() => {
-    if (!test || status !== 'exam') return;
-    document.documentElement.requestFullscreen?.().catch(() => {});
-  }, [test, status]);
+    if (testLoading || checkLoading || !test || startedRef.current) return;
+    startedRef.current = true;
 
-  // Detect fullscreen exit
+    const check = checkData as any;
+
+    // Already submitted → go to result
+    if (check?.submitted) {
+      router.replace(`/online-test/${id}/result`);
+      return;
+    }
+
+    const durationMatch = test.duration?.match(/(\d+)/);
+    const durationSeconds = durationMatch ? parseInt(durationMatch[1]) * 60 : 0;
+
+    // If session exists (returning candidate), calculate remaining time
+    if (check?.session) {
+      const elapsed = Math.floor((Date.now() - new Date(check.session.startedAt).getTime()) / 1000);
+      const remaining = durationSeconds - elapsed;
+
+      if (remaining <= 0) {
+        // Time already expired — auto submit
+        handleComplete(true);
+        return;
+      }
+
+      setAssignedSet(check.session.assignedSet);
+      setTimeLeft(remaining);
+      setStatus('exam');
+    } else {
+      // New session — pick random set and call start API
+      const randomSet = Math.ceil(Math.random() * (test.questionSet || 1));
+      setAssignedSet(randomSet);
+
+      startExam({
+        endpoint: `/api/exam/${id}/start`,
+        body: { assignedSet: randomSet },
+      }).then(() => {
+        setTimeLeft(durationSeconds);
+        setStatus('exam');
+      }).catch(() => {
+        setTimeLeft(durationSeconds);
+        setStatus('exam');
+      });
+    }
+  }, [testLoading, checkLoading, test, checkData]);
+
+  // Fullscreen
+  useEffect(() => {
+    if (status !== 'exam') return;
+    document.documentElement.requestFullscreen?.().catch(() => {});
+  }, [status]);
+
+  // Fullscreen exit detection
   useEffect(() => {
     const handler = () => {
       if (!document.fullscreenElement && status === 'exam') setShowTabWarning(true);
@@ -38,7 +90,7 @@ export default function ExamPage() {
     return () => document.removeEventListener('fullscreenchange', handler);
   }, [status]);
 
-  // Detect tab switch
+  // Tab switch detection
   useEffect(() => {
     if (status !== 'exam') return;
     const handler = () => {
@@ -51,35 +103,22 @@ export default function ExamPage() {
     return () => document.removeEventListener('visibilitychange', handler);
   }, [status]);
 
-  // Parse duration + assign set
-  useEffect(() => {
-    if (!test) return;
-    if (test.duration) {
-      const match = test.duration.match(/(\d+)/);
-      if (match) setTimeLeft(parseInt(match[1]) * 60);
-    }
-    if (test.questionSet && assignedSet === null) {
-      setAssignedSet(Math.ceil(Math.random() * (test.questionSet || 1)));
-    }
-  }, [test]);
-
   const handleComplete = useCallback(async (timedOut = false) => {
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
     try {
-      // Build answers payload: [{ questionId, answer }]
       const answersPayload = Object.entries(answers).map(([qId, ans]) => ({
         questionId: Number(qId),
         answer: ans,
       }));
       await submitExam({
         endpoint: `/api/exam/${id}/submit`,
-        body: { answers: answersPayload },
+        body: { answers: answersPayload, assignedSet },
       }).unwrap();
     } catch (err) { /* fail silently */ }
     setStatus(timedOut ? 'timeout' : 'completed');
-  }, [id, submitExam, answers]);
+  }, [id, submitExam, answers, assignedSet]);
 
-  // Timer
+  // Countdown timer
   useEffect(() => {
     if (timeLeft === null || status !== 'exam') return;
     if (timeLeft <= 0) { handleComplete(true); return; }
@@ -98,7 +137,7 @@ export default function ExamPage() {
   };
 
   const handleNext = () => {
-    if (currentIndex < questions.length - 1) {
+    if (currentIndex < safeQuestions.length - 1) {
       setCurrentIndex((i) => i + 1);
     } else {
       handleComplete(false);
@@ -106,27 +145,24 @@ export default function ExamPage() {
   };
 
   const handleSkip = () => {
-    if (currentIndex < questions.length - 1) setCurrentIndex((i) => i + 1);
+    if (currentIndex < safeQuestions.length - 1) setCurrentIndex((i) => i + 1);
   };
 
-  if (isLoading) {
+  if (testLoading || checkLoading || status === 'loading') {
     return <div className="flex items-center justify-center py-32"><span className="text-sm text-gray-400">Loading exam...</span></div>;
   }
 
   if (!test || !test.questions?.length) {
-    return <div className="flex items-center justify-center py-32"><span className="text-sm text-gray-400">No questions found for this exam.</span></div>;
+    return <div className="flex items-center justify-center py-32"><span className="text-sm text-gray-400">No questions found.</span></div>;
   }
 
   if (status === 'completed') return <CompletedScreen testId={id as string} />;
 
-  // Filter by assigned set
   const allQuestions: any[] = test.questions;
-  const questions = assignedSet && test.questionSet > 1
+  const filteredQuestions = assignedSet && test.questionSet > 1
     ? allQuestions.filter((q) => q.setNumber === assignedSet)
     : allQuestions;
-
-  // Guard: if no questions in assigned set, show all
-  const safeQuestions = questions.length > 0 ? questions : allQuestions;
+  const safeQuestions = filteredQuestions.length > 0 ? filteredQuestions : allQuestions;
   const currentQuestion = safeQuestions[currentIndex];
   const isLast = currentIndex === safeQuestions.length - 1;
 
@@ -139,7 +175,7 @@ export default function ExamPage() {
           <span className="text-sm font-semibold text-gray-700">
             Question ({currentIndex + 1}/{safeQuestions.length})
           </span>
-          {test.questionSet > 1 && assignedSet && (
+          {test.questionSet > 1 && (
             <span className="text-xs px-2 py-1 rounded-full bg-purple-50 text-[#6633FF] font-medium">
               Set {assignedSet}
             </span>
