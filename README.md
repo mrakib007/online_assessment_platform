@@ -95,7 +95,21 @@ JWT_SECRET="your-secret-key"
 PORT=5000
 ```
 
-## 🛠️ Tech Stack
+## � Test Credentials
+
+Use the following credentials to test the application:
+
+### Employer Account
+- **Email:** employer@test.com
+- **Password:** 123456
+
+### Candidate Account
+- **Email:** candidate@test.com
+- **Password:** 123456
+
+---
+
+## �️ Tech Stack
 
 ### Frontend
 - **Framework:** Next.js 14 (App Router)
