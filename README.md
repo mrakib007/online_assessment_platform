@@ -8,6 +8,21 @@ A modern, full-stack online assessment platform built with Next.js, React, and N
 - **GitHub Repository:** [https://github.com/mrakib007/online_assessment_platform](https://github.com/mrakib007/online_assessment_platform)
 - **Video Demo:** [Watch Demo](https://drive.google.com/file/d/1oBHmBZSszdBBN1HXrmAO_09b2mMvemep/view?usp=sharing)
 
+
+## � Test Credentials
+
+Use the following credentials to test the application:
+
+### Employer Account
+- **Email:** employer@test.com
+- **Password:** 123456
+
+### Candidate Account
+- **Email:** candidate@test.com
+- **Password:** 123456
+
+---
+
 ## 🚀 Features
 
 ### For Employers
@@ -94,20 +109,6 @@ DATABASE_URL="postgresql://user:password@localhost:5432/akij_resource"
 JWT_SECRET="your-secret-key"
 PORT=5000
 ```
-
-## � Test Credentials
-
-Use the following credentials to test the application:
-
-### Employer Account
-- **Email:** employer@test.com
-- **Password:** 123456
-
-### Candidate Account
-- **Email:** candidate@test.com
-- **Password:** 123456
-
----
 
 ## �️ Tech Stack
 
